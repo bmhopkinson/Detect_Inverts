@@ -4,6 +4,8 @@ import time
 import torch
 import pdb
 import numpy as np
+import copy
+from collections import defaultdict
 
 import torchvision.models.detection.mask_rcnn
 
@@ -67,12 +69,16 @@ def _get_iou_types(model):
     return iou_types
 
 def filter_results(coco_evaluator, score_thresh):
+    #currently only works for a single object class
     coco_eval = coco_evaluator.coco_eval["bbox"]
+    #coco_eval.evaluate()
     #clear matches below threshold, then evaluate precision, recall
     #numpy version
     #fitler results
-    evalFilt = {}
-    for idx,img in enumerate(coco_eval.evalImgs):
+    evalFilt = defaultdict(dict)
+    p = coco_eval.params
+    for idx, img in enumerate(coco_eval.evalImgs):
+        #pdb.set_trace()
         dtMatches = np.copy(img['dtMatches'])
         nT = len(dtMatches)
         iclr = [  s < score_thresh  for s in img['dtScores']]
@@ -95,7 +101,8 @@ def filter_results(coco_evaluator, score_thresh):
             gtMatches_filt.append(np.asarray(gtM_fr,dtype=np.float64))
             gtMatches[i,] = np.asarray(gtM_fr,dtype=np.float64)
 
-        evalFilt[idx] = {'dtMatches': dtMatches,'gtMatches': gtMatches}
+        aRngidx = p.areaRng.index(img['aRng'])
+        evalFilt[img['image_id']][p.areaRngLbl[aRngidx]] = {'dtMatches': dtMatches,'gtMatches': gtMatches}
         #pdb.set_trace()
 
     #determine performance metrics on filtered results
@@ -104,11 +111,13 @@ def filter_results(coco_evaluator, score_thresh):
     FP = np.zeros(shape=(10,),dtype=int)
     FN = np.zeros(shape=(10,),dtype=int)
 
-    for elm in evalFilt:
-        TP = TP + np.sum(evalFilt[elm]['dtMatches'] > 0.0, axis = 1 )
-        FP = FP + np.sum(np.absolute(evalFilt[elm]['dtMatches']) < 0.1, axis = 1 )
-        TP2= TP2+ np.sum(evalFilt[elm]['gtMatches'] > 0.0, axis = 1 )
-        FN = FN + np.sum(evalFilt[elm]['gtMatches'] < 0.1, axis = 1 )
+    for img in evalFilt:
+        for rng in evalFilt[img]:
+            if rng == p.areaRngLbl[0]:  #all size objects
+                TP = TP + np.sum(evalFilt[img][rng]['dtMatches'] > 0.0, axis = 1 )
+                FP = FP + np.sum(np.absolute(evalFilt[img][rng]['dtMatches']) < 0.1, axis = 1 )
+                TP2= TP2+ np.sum(evalFilt[img][rng]['gtMatches'] > 0.0, axis = 1 )
+                FN = FN + np.sum(evalFilt[img][rng]['gtMatches'] < 0.1, axis = 1 )
     #print("TP: {}, TP2: {}, FP: {} , FN: {}".format(TP, TP2, FP, FN))
 
     #computer precision and recall for IoU = 0.5

@@ -34,6 +34,7 @@ def main():
     folder_val   = ['./Data/Snails_2_BH/OD_imgs_val'  ,'./Data/Snails_2_BH/OD_data_val'  ]
     dataset_train = OD_Dataset(folder_train,get_transform(train=True) , min_area )
     dataset_val   = OD_Dataset(folder_val  ,get_transform(train=False), min_area )
+    print("length of val dataset {}".format(len(dataset_val)))
 
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train, batch_size=4, shuffle=True, num_workers=4,
