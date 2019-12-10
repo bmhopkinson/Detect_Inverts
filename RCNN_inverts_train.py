@@ -56,16 +56,17 @@ def main():
                                                    step_size=3,
                                                    gamma=0.1)
 
-    # let's train it for 10 epochs
-    num_epochs = 10
+    # let's train it for X epochs
+    num_epochs = 5
+    logfile = open("logfile_training_size_>1_SGD.txt",'w')
 
     for epoch in range(num_epochs):
         # train for one epoch, printing every 10 iterations
-        train_one_epoch(model, optimizer, data_loader_train, device, epoch, print_freq=10)
+        train_one_epoch(model, optimizer, data_loader_train, device, epoch, logfile, print_freq=20)
         # update the learning rate
         lr_scheduler.step()
         # evaluate on the test dataset
-        evaluate(model, data_loader_val, device=device)
+        evaluate(model, data_loader_val, logfile, device=device)
 
     torch.save(model.state_dict(),"faster_rcnn_snails.pt")
     print("That's it!")

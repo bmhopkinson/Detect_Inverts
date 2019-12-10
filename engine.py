@@ -3,6 +3,7 @@ import sys
 import time
 import torch
 import pdb
+import numpy as np
 
 import torchvision.models.detection.mask_rcnn
 
@@ -11,9 +12,9 @@ from coco_eval import CocoEvaluator
 import utils
 
 
-def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq):
+def train_one_epoch(model, optimizer, data_loader, device, epoch,logfile, print_freq):
     model.train()
-    metric_logger = utils.MetricLogger(delimiter="  ")
+    metric_logger = utils.MetricLogger(logfile, delimiter="  ")
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     header = 'Epoch: [{}]'.format(epoch)
 
@@ -65,16 +66,64 @@ def _get_iou_types(model):
         iou_types.append("keypoints")
     return iou_types
 
+def filter_results(coco_evaluator, score_thresh):
+    coco_eval = coco_evaluator.coco_eval["bbox"]
+    #clear matches below threshold, then evaluate precision, recall
+    #numpy version
+    #fitler results
+    evalFilt = {}
+    for idx,img in enumerate(coco_eval.evalImgs):
+        dtMatches = np.copy(img['dtMatches'])
+        nT = len(dtMatches)
+        iclr = [  s < score_thresh  for s in img['dtScores']]
+        iclr_np = np.asarray(iclr, dtype=bool)
+        dtMatches[:,iclr_np] = -1.0  #indicates to ignore
 
+        gtMatches = np.zeros(img['gtMatches'].shape)
+        gtMatches_filt = []
+        gtIds = img['gtIds']
+        #pdb.set_trace()
+        for i, gtM in enumerate(np.copy(img['gtMatches'])):
+            #gtM_fr = [0.0 if iclr[int(m)] else m for m in gtM]
+            gtM_fr = []
+            for m in gtM:
+                m = int(m)
+                if m == 0:
+                    gtM_fr.append(0.0)
+                else:
+                    gtM_fr.append(0.0 if iclr[m-1] else float(m))
+            gtMatches_filt.append(np.asarray(gtM_fr,dtype=np.float64))
+            gtMatches[i,] = np.asarray(gtM_fr,dtype=np.float64)
+
+        evalFilt[idx] = {'dtMatches': dtMatches,'gtMatches': gtMatches}
+        #pdb.set_trace()
+
+    #determine performance metrics on filtered results
+    TP = np.zeros(shape=(10,),dtype=int)
+    TP2= np.zeros(shape=(10,),dtype=int)
+    FP = np.zeros(shape=(10,),dtype=int)
+    FN = np.zeros(shape=(10,),dtype=int)
+
+    for elm in evalFilt:
+        TP = TP + np.sum(evalFilt[elm]['dtMatches'] > 0.0, axis = 1 )
+        FP = FP + np.sum(np.absolute(evalFilt[elm]['dtMatches']) < 0.1, axis = 1 )
+        TP2= TP2+ np.sum(evalFilt[elm]['gtMatches'] > 0.0, axis = 1 )
+        FN = FN + np.sum(evalFilt[elm]['gtMatches'] < 0.1, axis = 1 )
+    #print("TP: {}, TP2: {}, FP: {} , FN: {}".format(TP, TP2, FP, FN))
+
+    #computer precision and recall for IoU = 0.5
+    pr = TP[0]/(TP[0] + FP[0])
+    rc = TP[0]/(TP[0] + FN[0])
+    return {'TP': TP[0], 'FP': FP[0], 'FN': FN[0], 'PR': pr, 'RC': rc}
 
 @torch.no_grad()
-def evaluate(model, data_loader, device):
+def evaluate(model, data_loader, logfile, device):
     n_threads = torch.get_num_threads()
     # FIXME remove this and make paste_masks_in_image run on the GPU
     torch.set_num_threads(1)
     cpu_device = torch.device("cpu")
     model.eval()
-    metric_logger = utils.MetricLogger(delimiter="  ")
+    metric_logger = utils.MetricLogger(logfile, delimiter="  ")
     header = 'Test:'
 
     coco = get_coco_api_from_dataset(data_loader.dataset)
@@ -106,5 +155,14 @@ def evaluate(model, data_loader, device):
     # accumulate predictions from all images
     coco_evaluator.accumulate()
     coco_evaluator.summarize()
+    #pdb.set_trace()
+    #eval_trials(coco_evaluator)
+    score_thresholds = [0.5, 0.6, 0.7, 0.8, 0.9]
+    for thresh in score_thresholds:
+        res_filt = filter_results(coco_evaluator, thresh)
+        print_str = "Thresh: {:4.3f}, TP: {}, FP: {} , FN: {}, PR: {:4.3f}, RC: {:4.3f}".format(thresh, res_filt['TP'],res_filt['FP'],res_filt['FN'],res_filt['PR'],res_filt['RC'])
+        print(print_str)
+        logfile.write(print_str + '\n')
+
     torch.set_num_threads(n_threads)
     return coco_evaluator
