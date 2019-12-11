@@ -87,6 +87,7 @@ class OD_Dataset(object):
         iscrowd = torch.zeros((num_objs,), dtype=torch.int64)
 
         target = {}
+
         target["boxes"] = boxes
         target["labels"] = labels
         target["image_id"] = image_id

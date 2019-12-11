@@ -1,4 +1,5 @@
 /Data
+/output
 /__pycache__
 logfile*
 *.pt

@@ -34,7 +34,7 @@ def main():
     folder_val   = ['./Data/Snails_2_BH/OD_imgs_val'  ,'./Data/Snails_2_BH/OD_data_val'  ]
     dataset_train = OD_Dataset(folder_train,get_transform(train=True) , min_area )
     dataset_val   = OD_Dataset(folder_val  ,get_transform(train=False), min_area )
-    print("length of val dataset {}".format(len(dataset_val)))
+    #print("length of val dataset {}".format(len(dataset_val)))
 
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train, batch_size=4, shuffle=True, num_workers=4,
@@ -52,6 +52,8 @@ def main():
     params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.SGD(params, lr=0.005,
                                 momentum=0.9, weight_decay=0.0005)
+    #optimizer = torch.optim.Adam(params, lr = 1E-5, weight_decay=0.0005 )
+
     # and a learning rate scheduler
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
                                                    step_size=3,

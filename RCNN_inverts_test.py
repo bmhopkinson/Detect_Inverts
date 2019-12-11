@@ -11,6 +11,8 @@ from PIL import Image, ImageDraw, ImageFont
 
 num_classes = 2
 score_threshold = 0.70
+min_area = 1 #minimum object size in pixels^2
+logfile_name = "logfile_test.txt"
 
 def get_transform(train):
     transforms = []
@@ -19,7 +21,7 @@ def get_transform(train):
         transforms.append(T.RandomHorizontalFlip(0.5))
     return T.Compose(transforms)
 
-def setup_model(num_classes):
+def setup_model(num_clas(model,)ses):
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     # replace the pre-trained head with a new one
@@ -39,11 +41,13 @@ def main():
     model.to(device)
 
     # setup datasets and dataloaders
-    folder = ['./OD_imgs_val','./OD_data_val']
+    folder = ['./Data/Snails_2_BH/OD_imgs_test','./Data/Snails_2_BH/OD_data_test']
     dataset = OD_Dataset_Test(folder,get_transform(train=False))
     data_loader = torch.utils.data.DataLoader(dataset, batch_size = 1,
             shuffle=False, num_workers = 4, collate_fn= utils.collate_fn)
 
+    logfile = open(logfile_name,"w")
+    evaluate(model, data_loader, logfile, device)
     with torch.no_grad():
         for it, sample in enumerate(data_loader):
             img = sample[0][0]
