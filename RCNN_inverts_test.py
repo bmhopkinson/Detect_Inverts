@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from ODDataset_Test import OD_Dataset_Test
+from ODDataset_Train import OD_Dataset
 import torchvision
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from engine import train_one_epoch, evaluate
@@ -21,7 +21,7 @@ def get_transform(train):
         transforms.append(T.RandomHorizontalFlip(0.5))
     return T.Compose(transforms)
 
-def setup_model(num_clas(model,)ses):
+def setup_model(num_classes):
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=True)
     in_features = model.roi_heads.box_predictor.cls_score.in_features
     # replace the pre-trained head with a new one
@@ -42,7 +42,7 @@ def main():
 
     # setup datasets and dataloaders
     folder = ['./Data/Snails_2_BH/OD_imgs_test','./Data/Snails_2_BH/OD_data_test']
-    dataset = OD_Dataset_Test(folder,get_transform(train=False))
+    dataset = OD_Dataset(folder,get_transform(train=False), min_area)
     data_loader = torch.utils.data.DataLoader(dataset, batch_size = 1,
             shuffle=False, num_workers = 4, collate_fn= utils.collate_fn)
 
@@ -73,7 +73,7 @@ def main():
                 draw.rectangle(box, outline = (255,0,0,127), width=3)
             imgPIL = Image.alpha_composite(imgPIL, overlay_true).convert("RGB")
 
-            imgPIL.save("./output/"+ target["file_name"] + "_preds.jpg","JPEG")
+            imgPIL.save("./output/"+ dataset.imgs[target["image_id"]] + "_preds.jpg","JPEG")
 
 
 if __name__ == '__main__':
