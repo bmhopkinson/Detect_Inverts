@@ -13,6 +13,7 @@ num_classes = 2
 score_threshold = 0.70
 min_area = 1 #minimum object size in pixels^2
 logfile_name = "logfile_test.txt"
+OUTPUT_IMAGES = True
 
 def get_transform(train):
     transforms = []
@@ -48,32 +49,34 @@ def main():
 
     logfile = open(logfile_name,"w")
     evaluate(model, data_loader, logfile, device)
-    with torch.no_grad():
-        for it, sample in enumerate(data_loader):
-            img = sample[0][0]
-            target = sample[1][0]
-            pred = model([img.to(device)])
-            #pdb.set_trace()
-            boxes  = pred[0]['boxes'].to('cpu').numpy()
-            labels = pred[0]['labels'].to('cpu').numpy()
-            scores = pred[0]['scores'].to('cpu').numpy()
-            imgPIL = torchvision.transforms.ToPILImage()(img).convert("RGBA")
-            overlay_pred = Image.new('RGBA',imgPIL.size, (0,0,0,0))
-            draw = ImageDraw.Draw(overlay_pred)
-            n_preds = len(scores)
-            for i in range(n_preds):
-                if scores[i] > score_threshold:
-                    draw.rectangle(boxes[i],outline = (0,0,255,127), width=3)
-            imgPIL = Image.alpha_composite(imgPIL, overlay_pred)
 
-            overlay_true = Image.new('RGBA',imgPIL.size, (0,0,0,0))
-            draw = ImageDraw.Draw(overlay_true)
-            true_boxes = target["boxes"].numpy()
-            for box in true_boxes:
-                draw.rectangle(box, outline = (255,0,0,127), width=3)
-            imgPIL = Image.alpha_composite(imgPIL, overlay_true).convert("RGB")
+    if OUTPUT_IMAGES:
+        with torch.no_grad():
+            for it, sample in enumerate(data_loader):
+                img = sample[0][0]
+                target = sample[1][0]
+                pred = model([img.to(device)])
+                #pdb.set_trace()
+                boxes  = pred[0]['boxes'].to('cpu').numpy()
+                labels = pred[0]['labels'].to('cpu').numpy()
+                scores = pred[0]['scores'].to('cpu').numpy()
+                imgPIL = torchvision.transforms.ToPILImage()(img).convert("RGBA")
+                overlay_pred = Image.new('RGBA',imgPIL.size, (0,0,0,0))
+                draw = ImageDraw.Draw(overlay_pred)
+                n_preds = len(scores)
+                for i in range(n_preds):
+                    if scores[i] > score_threshold:
+                        draw.rectangle(boxes[i],outline = (0,0,255,127), width=3)
+                imgPIL = Image.alpha_composite(imgPIL, overlay_pred)
 
-            imgPIL.save("./output/"+ dataset.imgs[target["image_id"]] + "_preds.jpg","JPEG")
+                overlay_true = Image.new('RGBA',imgPIL.size, (0,0,0,0))
+                draw = ImageDraw.Draw(overlay_true)
+                true_boxes = target["boxes"].numpy()
+                for box in true_boxes:
+                    draw.rectangle(box, outline = (255,0,0,127), width=3)
+                imgPIL = Image.alpha_composite(imgPIL, overlay_true).convert("RGB")
+
+                imgPIL.save("./output/"+ dataset.imgs[target["image_id"]] + "_preds.jpg","JPEG")
 
 
 if __name__ == '__main__':
