@@ -1,5 +1,7 @@
 /Data
+/Preds
 /output
+/tmp
 /__pycache__
 logfile*
 *.pt

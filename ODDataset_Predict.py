@@ -10,16 +10,20 @@ re_fbase = re.compile('^(.*)\.[jJ][pP][eE]?[gG]')
 
 
 class OD_Dataset_Predict(object):
-    def __init__(self,folders,transforms):
-        self.folders = folders
+    def __init__(self,folder,transforms):
+        self.folder = folder
         self.transforms = transforms
 
         #load names of image files and corresponding annotation files
-        self.imgs = list(sorted(os.listdir(folders[0])))
+        img_fnames = []
+        for (dirpath, dirname, files) in os.walk(folder, topdown='True'):
+                for name in files:
+                    fullpath = os.path.join(dirpath,name)
+                    img_fnames.append(fullpath)
+        self.imgs = img_fnames
 
     def __getitem__(self,idx):
-        img_path = os.path.join(self.folders[0], self.imgs[idx])
-        img = Image.open(img_path).convert("RGB")
+        img = Image.open(self.imgs[idx]).convert("RGB")
 
         if self.transforms is not None:
             target = None

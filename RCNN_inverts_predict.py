@@ -6,14 +6,21 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 import utils
 import transforms as T
 import pdb
-from PIL import Image, ImageDraw, ImageFont
+import os
+import shutil
 import re
+import helpers
 
 re_fbase = re.compile('^(.*)\.[jJ][pP][eE]?[gG]')
 
 num_classes = 2
 score_threshold = 0.70
 OUTPUT_IMAGES = True
+img_input_folder = './Data/Snails_pred_wholetest'
+section_dim = [7, 6]  #columns, rows to split input image into
+pred_format = "{}\t{:4.3f}\t{:5.1f}\t{:5.1f}\t{:5.1f}\t{:5.1f}\n"
+
+params = [section_dim, pred_format, re_fbase]
 
 def get_transform(train):
     transforms = []
@@ -29,45 +36,7 @@ def setup_model(num_classes):
     model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
     return model
 
-def write_pred(name, data):
-    m = re_fbase.search(name)
-    fn_out = './output/preds/' + m.group(1) + '_preds.txt'
-    fout = open(fn_out,'w')
-    for b, l, s in zip(data['boxes'], data['labels'], data['scores']):
-        if s > score_threshold:
-            fout.write("{}\t{:4.3f}\t{:5.1f}\t{:5.1f}\t{:5.1f}\t{:5.1f}\n".format(l, s, b[0], b[1], b[2], b[3]))
-    fout.close()
-
-def write_image(name, data, img):
-    #visualize predctions on images
-    m = re_fbase.search(name)
-    imgPIL = torchvision.transforms.ToPILImage()(img).convert("RGBA")
-    overlay_pred = Image.new('RGBA',imgPIL.size, (0,0,0,0))
-    draw = ImageDraw.Draw(overlay_pred)
-    n_preds = len(data['scores'])
-
-    for i in range(n_preds):
-        if data['scores'][i] > score_threshold:
-            draw.rectangle(data['boxes'][i],outline = (0,0,255,127), width=3)
-    imgPIL = Image.alpha_composite(imgPIL, overlay_pred).convert("RGB")
-    imgPIL.save("./output/"+ m.group(1) + "_preds.jpg","JPEG")
-
-def main():
-    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-
-    #set up model
-    model_state_file = 'faster_rcnn_snails.pt'
-    model = setup_model(num_classes)
-    model.load_state_dict(torch.load(model_state_file))
-    model.eval()
-    model.to(device)
-
-    # setup datasets and dataloaders
-    folder = ['./Data/Snails_pred_test']
-    dataset = OD_Dataset_Predict(folder,get_transform(train=False))
-    data_loader = torch.utils.data.DataLoader(dataset, batch_size = 2,
-            shuffle=False, num_workers = 4, collate_fn= utils.collate_fn)
-
+def make_predictions(model, data_loader, device):
     with torch.no_grad():
         for it, sample in enumerate(data_loader):
             images = list(image.to(device) for image in sample[0])
@@ -81,11 +50,49 @@ def main():
                 pdata['labels'] = pred['labels'].to('cpu').numpy()
                 pdata['scores'] = pred['scores'].to('cpu').numpy()
 
-                #write predictions to file, image
-                write_pred(name,pdata)
+                #filter then write predictions to file, image
+                pdata_filt = {'scores':[], 'labels':[], 'boxes':[] }
+                for b, l, s in zip(pdata['boxes'], pdata['labels'], pdata['scores']):
+                    if s > score_threshold:
+                        pdata_filt['scores'].append(s)
+                        pdata_filt['labels'].append(l)
+                        pdata_filt['boxes'].append(b)
+
+                helpers.write_pred(name,pdata_filt,params)
                 if OUTPUT_IMAGES:
                     img = img.to('cpu')
-                    write_image(name, pdata,img)
+                    img = torchvision.transforms.ToPILImage()(img).convert("RGBA")
+                    helpers.write_image(name, pdata_filt,img, params)
+
+def main():
+    #split images into sectors for RCNN processing
+    tmp_folder = './tmp'  #start with a clean tmp folder
+    if os.path.isdir(tmp_folder):
+        shutil.rmtree(tmp_folder)
+        os.mkdir(tmp_folder)
+    else:
+        os.mkdir(tmp_folder)
+    section_data = helpers.section_images(img_input_folder, tmp_folder, params)
+
+    #set up model
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    model_state_file = 'faster_rcnn_snails.pt'
+    model = setup_model(num_classes)
+    model.load_state_dict(torch.load(model_state_file))
+    model.eval()
+    model.to(device)
+
+    # setup datasets and dataloaders
+    dataset = OD_Dataset_Predict(tmp_folder,get_transform(train=False))
+
+    data_loader = torch.utils.data.DataLoader(dataset, batch_size = 4,
+            shuffle=False, num_workers = 4, collate_fn= utils.collate_fn)
+
+    make_predictions(model, data_loader, device)
+
+    helpers.assemble_predictions(section_data, params)
+
+
 
 if __name__ == '__main__':
     main()
