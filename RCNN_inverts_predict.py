@@ -14,9 +14,9 @@ import helpers
 re_fbase = re.compile('^(.*)\.[jJ][pP][eE]?[gG]')
 
 num_classes = 2
-score_threshold = 0.70
+score_threshold = 0.80
 OUTPUT_IMAGES = True
-img_input_folder = './Data/Snails_pred_wholetest'
+img_input_folder = './Data/Snails_pred_wholetest'  #each directory (and its subdirectories) within this folder is processed as a unit
 section_dim = [7, 6]  #columns, rows to split input image into
 pred_format = "{}\t{:4.3f}\t{:5.1f}\t{:5.1f}\t{:5.1f}\t{:5.1f}\n"
 
@@ -65,14 +65,6 @@ def make_predictions(model, data_loader, device):
                     helpers.write_image(name, pdata_filt,img, params)
 
 def main():
-    #split images into sectors for RCNN processing
-    tmp_folder = './tmp'  #start with a clean tmp folder
-    if os.path.isdir(tmp_folder):
-        shutil.rmtree(tmp_folder)
-        os.mkdir(tmp_folder)
-    else:
-        os.mkdir(tmp_folder)
-    section_data = helpers.section_images(img_input_folder, tmp_folder, params)
 
     #set up model
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -82,15 +74,27 @@ def main():
     model.eval()
     model.to(device)
 
-    # setup datasets and dataloaders
-    dataset = OD_Dataset_Predict(tmp_folder,get_transform(train=False))
+    dir_units = [entry for entry in os.listdir(img_input_folder) if os.path.isdir(os.path.join(img_input_folder, entry))]
+    for unit in dir_units:
+        print('working on {}'.format(unit))
+        base_folder = os.path.join(img_input_folder,unit)
+        tmp_folder = './tmp'  #start with a clean tmp folder
+        if os.path.isdir(tmp_folder):
+            shutil.rmtree(tmp_folder)
+            os.mkdir(tmp_folder)
+        else:
+            os.mkdir(tmp_folder)
+        section_data = helpers.section_images(base_folder, tmp_folder, params)
 
-    data_loader = torch.utils.data.DataLoader(dataset, batch_size = 4,
-            shuffle=False, num_workers = 4, collate_fn= utils.collate_fn)
+        # setup datasets and dataloaders
+        dataset = OD_Dataset_Predict(tmp_folder,get_transform(train=False))
 
-    make_predictions(model, data_loader, device)
+        data_loader = torch.utils.data.DataLoader(dataset, batch_size = 4,
+                shuffle=False, num_workers = 4, collate_fn= utils.collate_fn)
 
-    helpers.assemble_predictions(section_data, params)
+        make_predictions(model, data_loader, device)
+
+        helpers.assemble_predictions(section_data, params)
 
 
 
