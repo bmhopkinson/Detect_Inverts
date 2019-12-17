@@ -129,15 +129,16 @@ def section_images(infolder, outdir, params):
     params.append(outdir)
     print('splitting images')
     start = time.time()
+
     for (dirpath, dirname, files) in os.walk(infolder, topdown='True'):
+        #send image files to split to n_proc different processes - all data is added to sec_data (manager.dict() - thread safe dict)
         jobs = []
         for chunk in chunks(files,math.ceil(len(files)/n_proc)):
             #pdb.set_trace()
             #pool.apply(_fsec, args = (sec_data,chunk, dirpath, params))  #this didn't work for me - always used a single core
-            p = mp.Process(target = _fsec, args = (sec_data,chunk, dirpath, params))
+            p = mp.Process(target = _fsec, args = (sec_data,chunk, dirpath, params)) #this works - actually uses multiple cores
             p.start()
             jobs.append(p)
-            print('started new job')
 
         for j in jobs:
             j.join()
