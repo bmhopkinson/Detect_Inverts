@@ -16,7 +16,7 @@ re_fbase = re.compile('^(.*)\.[jJ][pP][eE]?[gG]')
 num_classes = 2
 score_threshold = 0.80
 OUTPUT_IMAGES = True
-img_input_folder = './Data/Snails_pred_wholetest'  #each directory (and its subdirectories) within this folder is processed as a unit
+img_input_folder = './Data/Row6'  #each directory (and its subdirectories) within this folder is processed as a unit
 section_dim = [7, 6]  #columns, rows to split input image into
 pred_format = "{}\t{:4.3f}\t{:5.1f}\t{:5.1f}\t{:5.1f}\t{:5.1f}\n"
 
