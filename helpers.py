@@ -16,7 +16,7 @@ path_regex = re.compile('.+?/(.*)$')
 
 def write_image(name, data, imgPIL, params):
     #visualize predctions on images
-    m = params[2].search(name)
+    m = params['re_fbase'].search(name)
     overlay_pred = Image.new('RGBA',imgPIL.size, (0,0,0,0))
     draw = ImageDraw.Draw(overlay_pred)
     n_preds = len(data['scores'])
@@ -31,12 +31,10 @@ def write_image(name, data, imgPIL, params):
     imgPIL.save( m.group(1) + "_preds.jpg","JPEG")
 
 
-def write_pred(name, data, params):
-    m = params[2].search(name)
-    fn_out =  m.group(1) + '_preds.txt'
-    fout = open(fn_out,'w')
+def write_pred(fname, data, params):
+    fout = open(fname,'w')
     for b, l, s in zip(data['boxes'], data['labels'], data['scores']):
-        fout.write(params[1].format(l, s, b[0], b[1], b[2], b[3]))
+        fout.write(params['fmt'].format(l, s, b[0], b[1], b[2], b[3]))
     fout.close()
 
 def _section_image(im, section_dim):
@@ -86,15 +84,15 @@ def rotate_image(mat, angle):
 
 #_fsec is core of splitting image - called by parallel prosesing pool
 def _fsec(sec_data,files, dirpath, params):
-    sector_dim = params[0]
+
     for name in files:
         fullpath = os.path.join(dirpath,name)
-
         m = path_regex.findall(dirpath)
-        is_imfile = params[2].findall(name)
+        is_imfile = params['re_fbase'].findall(name)
+
         if(is_imfile):
             dirpath_sub = m[0]
-            new_dirpath = os.path.join(params[-1],dirpath_sub)
+            new_dirpath = os.path.join(params['outfld'],dirpath_sub)
             if not os.path.isdir(new_dirpath):
                 os.makedirs(new_dirpath)
 
@@ -107,7 +105,7 @@ def _fsec(sec_data,files, dirpath, params):
                 im_rot = rotate_image(im, 90);
             else:
                 im_rot = im;
-            im_sections, offsets = _section_image(im_rot, sector_dim)
+            im_sections, offsets = _section_image(im_rot, params['dim'])
 
             for i in range(len(im_sections)):
                 outfile =  file_base + "_" + str(i) +'.jpg'
@@ -121,13 +119,11 @@ def chunks(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
 
-def section_images(infolder, outdir, params):
+def section_images(infolder, params):
     n_proc = 8
 #    pool = mp.Pool(processes = n_proc)
     manager = mp.Manager()
     sec_data = manager.dict()
-    params.append(outdir)
-    print('splitting images')
     start = time.time()
 
     for (dirpath, dirname, files) in os.walk(infolder, topdown='True'):
@@ -136,25 +132,27 @@ def section_images(infolder, outdir, params):
         for chunk in chunks(files,math.ceil(len(files)/n_proc)):
             #pdb.set_trace()
             #pool.apply(_fsec, args = (sec_data,chunk, dirpath, params))  #this didn't work for me - always used a single core
-            p = mp.Process(target = _fsec, args = (sec_data,chunk, dirpath, params)) #this works - actually uses multiple cores
-            p.start()
-            jobs.append(p)
+            j = mp.Process(target = _fsec, args = (sec_data,chunk, dirpath, params)) #this works - actually uses multiple cores
+            j.start()
+            jobs.append(j)
 
         for j in jobs:
             j.join()
 
     stop = time.time();
-    delta = stop - start
-    print('done splitting images {}'.format(delta))
+    delta_t = stop - start
+    print('done splitting images {:4.2f}'.format(delta_t))
     return sec_data
 
 def assemble_predictions(section_data, params):
+    print('assembling predictions')
+    start = time.time()
     for im_file in section_data:
         labels = []
         scores = []
         boxes = []
-        section_dim = params[0]
-        fmt_str = params[1]
+        section_dim = params['dim']
+        fmt_str = params['fmt']
         n_sec = section_dim[0] * section_dim[1]
         offsets = section_data[im_file][1]
         for i in range(n_sec):
@@ -168,6 +166,7 @@ def assemble_predictions(section_data, params):
                 boxes.append([pl[2] + offsets[i][0], pl[3] + offsets[i][1], pl[4] + offsets[i][0], pl[5] + offsets[i][1] ])
 
             f.close()
+        pred_data = {'labels': labels, 'scores': scores, 'boxes': boxes}  #package data in standard format
 
         #setup output files and directories
         full_img_file = section_data[im_file][0]
@@ -176,18 +175,16 @@ def assemble_predictions(section_data, params):
         out_dir = os.path.dirname(out_img_file)
         if not os.path.isdir(out_dir):
             os.makedirs(out_dir)
-
-        #WORKING AROUD HERE - NOT ALL out_preds_file WENT TO THE RIGTH PLACE
-        m2 = params[2].search(out_img_file)
+        m2 = params['re_fbase'].search(out_img_file)
         out_preds_file    = m2.group(1) + '_preds.txt'
 
-        fout = open(out_preds_file,"w")
-        for j in range(len(labels)):
-            fout.write(fmt_str.format(labels[j], scores[j],boxes[j][0], boxes[j][1], boxes[j][2], boxes[j][3]))
+        #write out predictions
+        write_pred(out_preds_file, pred_data, params)
 
-        pred_data = {'labels': labels, 'scores': scores, 'boxes': boxes}
-
+        #mark predictions on images
         full_img = Image.open(full_img_file).convert("RGBA")  #NEED TO TEST WHETHER TO ROTATE IMAGE
-
-
         write_image(out_img_file, pred_data, full_img, params)
+
+    stop = time.time()
+    delta_t = stop - start
+    print('done assembling predictions {:4.2f}'.format(delta_t))

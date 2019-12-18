@@ -16,11 +16,11 @@ re_fbase = re.compile('^(.*)\.[jJ][pP][eE]?[gG]')
 num_classes = 2
 score_threshold = 0.80
 OUTPUT_IMAGES = True
-img_input_folder = './Data/Row6'  #each directory (and its subdirectories) within this folder is processed as a unit
+img_input_folder = './Data/Row6_partial'  #each directory (and its subdirectories) within this folder is processed as a unit
 section_dim = [7, 6]  #columns, rows to split input image into
 pred_format = "{}\t{:4.3f}\t{:5.1f}\t{:5.1f}\t{:5.1f}\t{:5.1f}\n"
 
-params = [section_dim, pred_format, re_fbase]
+params = {'dim':section_dim, 'fmt': pred_format,'re_fbase': re_fbase}
 
 def get_transform(train):
     transforms = []
@@ -58,7 +58,9 @@ def make_predictions(model, data_loader, device):
                         pdata_filt['labels'].append(l)
                         pdata_filt['boxes'].append(b)
 
-                helpers.write_pred(name,pdata_filt,params)
+                m = params['re_fbase'].search(name)
+                fn_out =  m.group(1) + '_preds.txt'
+                helpers.write_pred(fn_out,pdata_filt,params)
                 if OUTPUT_IMAGES:
                     img = img.to('cpu')
                     img = torchvision.transforms.ToPILImage()(img).convert("RGBA")
@@ -84,7 +86,8 @@ def main():
             os.mkdir(tmp_folder)
         else:
             os.mkdir(tmp_folder)
-        section_data = helpers.section_images(base_folder, tmp_folder, params)
+        params['outfld'] = tmp_folder
+        section_data = helpers.section_images(base_folder,  params)
 
         # setup datasets and dataloaders
         dataset = OD_Dataset_Predict(tmp_folder,get_transform(train=False))
