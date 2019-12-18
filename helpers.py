@@ -144,10 +144,8 @@ def section_images(infolder, params):
     print('done splitting images {:4.2f}'.format(delta_t))
     return sec_data
 
-def assemble_predictions(section_data, params):
-    print('assembling predictions')
-    start = time.time()
-    for im_file in section_data:
+def _assemble_predictions(im_files, section_data,params):
+    for im_file in im_files:
         labels = []
         scores = []
         boxes = []
@@ -184,6 +182,19 @@ def assemble_predictions(section_data, params):
         #mark predictions on images
         full_img = Image.open(full_img_file).convert("RGBA")  #NEED TO TEST WHETHER TO ROTATE IMAGE
         write_image(out_img_file, pred_data, full_img, params)
+
+def assemble_predictions(section_data, params):
+    n_proc = 8
+    print('assembling predictions')
+    start = time.time()
+    jobs = []
+    for chunk in chunks(section_data.keys(),math.ceil(len(section_data.keys())/n_proc)):
+        j = mp.Process(target = _assemble_predictions, args = (chunk, section_data, params)) #this works - actually uses multiple cores
+        j.start()
+        jobs.append(j)
+
+    for j in jobs:
+        j.join()
 
     stop = time.time()
     delta_t = stop - start
