@@ -10,17 +10,19 @@ import os
 import shutil
 import re
 import helpers
+import time
 
 re_fbase = re.compile('^(.*)\.[jJ][pP][eE]?[gG]')
 
 num_classes = 2
 score_threshold = 0.80
 OUTPUT_IMAGES = True
-img_input_folder = './Data/Row6_partial'  #each directory (and its subdirectories) within this folder is processed as a unit
+img_input_folder = './Data/2014'  #each directory (and its subdirectories) within this folder is processed as a unit
+#img_input_folder = './Data/Snails_pred_wholetest'
 section_dim = [7, 6]  #columns, rows to split input image into
 pred_format = "{}\t{:4.3f}\t{:5.1f}\t{:5.1f}\t{:5.1f}\t{:5.1f}\n"
 
-params = {'dim':section_dim, 'fmt': pred_format,'re_fbase': re_fbase}
+params = {'dim':section_dim, 'fmt': pred_format,'re_fbase': re_fbase, 'n_proc' : 8}
 
 def get_transform(train):
     transforms = []
@@ -79,6 +81,8 @@ def main():
     dir_units = [entry for entry in os.listdir(img_input_folder) if os.path.isdir(os.path.join(img_input_folder, entry))]
     for unit in dir_units:
         print('working on {}'.format(unit))
+        start = time.time()
+
         base_folder = os.path.join(img_input_folder,unit)
         tmp_folder = './tmp'  #start with a clean tmp folder
         if os.path.isdir(tmp_folder):
@@ -98,6 +102,10 @@ def main():
         make_predictions(model, data_loader, device)
 
         helpers.assemble_predictions(section_data, params)
+
+        stop = time.time();
+        delta_t = stop - start
+        print('finished in {:4.2f} s'.format(delta_t))
 
 
 

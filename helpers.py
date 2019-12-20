@@ -5,7 +5,6 @@ import re
 import parse
 import pdb
 import multiprocessing as mp
-import time
 import math
 from PIL import Image, ImageDraw, ImageFont
 
@@ -37,7 +36,7 @@ def write_pred(fname, data, params):
         fout.write(params['fmt'].format(l, s, b[0], b[1], b[2], b[3]))
     fout.close()
 
-def _section_image(im, section_dim):
+def _section_single_image(im, section_dim):
    sections = []  #image sections
    offsets = []   #x,y offests of sections
    n_wide = section_dim[0]
@@ -82,8 +81,8 @@ def rotate_image(mat, angle):
     rotated_mat = cv2.warpAffine(mat, rotation_mat, (bound_w, bound_h))
     return rotated_mat
 
-#_fsec is core of splitting image - called by parallel prosesing pool
-def _fsec(sec_data,files, dirpath, params):
+#_section_images is core of splitting image - called by parallel prosesing pool
+def  _section_images(sec_data,files, dirpath, params):
 
     for name in files:
         fullpath = os.path.join(dirpath,name)
@@ -105,7 +104,7 @@ def _fsec(sec_data,files, dirpath, params):
                 im_rot = rotate_image(im, 90);
             else:
                 im_rot = im;
-            im_sections, offsets = _section_image(im_rot, params['dim'])
+            im_sections, offsets = _section_single_image(im_rot, params['dim'])
 
             for i in range(len(im_sections)):
                 outfile =  file_base + "_" + str(i) +'.jpg'
@@ -120,11 +119,10 @@ def chunks(lst, n):
         yield lst[i:i + n]
 
 def section_images(infolder, params):
-    n_proc = 8
+    n_proc = params['n_proc']
 #    pool = mp.Pool(processes = n_proc)
     manager = mp.Manager()
     sec_data = manager.dict()
-    start = time.time()
 
     for (dirpath, dirname, files) in os.walk(infolder, topdown='True'):
         #send image files to split to n_proc different processes - all data is added to sec_data (manager.dict() - thread safe dict)
@@ -132,16 +130,13 @@ def section_images(infolder, params):
         for chunk in chunks(files,math.ceil(len(files)/n_proc)):
             #pdb.set_trace()
             #pool.apply(_fsec, args = (sec_data,chunk, dirpath, params))  #this didn't work for me - always used a single core
-            j = mp.Process(target = _fsec, args = (sec_data,chunk, dirpath, params)) #this works - actually uses multiple cores
+            j = mp.Process(target = _section_images, args = (sec_data,chunk, dirpath, params)) #this works - actually uses multiple cores
             j.start()
             jobs.append(j)
 
         for j in jobs:
             j.join()
 
-    stop = time.time();
-    delta_t = stop - start
-    print('done splitting images {:4.2f}'.format(delta_t))
     return sec_data
 
 def _assemble_predictions(im_files, section_data,params):
@@ -184,9 +179,7 @@ def _assemble_predictions(im_files, section_data,params):
         write_image(out_img_file, pred_data, full_img, params)
 
 def assemble_predictions(section_data, params):
-    n_proc = 8
-    print('assembling predictions')
-    start = time.time()
+    n_proc = params['n_proc']
     jobs = []
     for chunk in chunks(section_data.keys(),math.ceil(len(section_data.keys())/n_proc)):
         j = mp.Process(target = _assemble_predictions, args = (chunk, section_data, params)) #this works - actually uses multiple cores
@@ -195,7 +188,3 @@ def assemble_predictions(section_data, params):
 
     for j in jobs:
         j.join()
-
-    stop = time.time()
-    delta_t = stop - start
-    print('done assembling predictions {:4.2f}'.format(delta_t))
