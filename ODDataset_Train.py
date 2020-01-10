@@ -29,11 +29,10 @@ def filter_by_objarea(area, boxes, labels, min_area):
     labels_filt = labels[exceed]
     return boxes_filt, labels_filt
 
-def filter_imgs_by_objarea(anns,imgs, folder, min_area):
+def filter_imgs_by_objarea(anns, imgs,  min_area):
     keep = []
-    for i in anns:
-        ann_path = os.path.join(folder, i)
-        boxes, labels = read_anns(ann_path)
+    for a in anns:
+        boxes, labels = read_anns(a)
         area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
         exceed = area > min_area
         if sum(exceed) >= 1:
@@ -48,26 +47,40 @@ def filter_imgs_by_objarea(anns,imgs, folder, min_area):
 
 
 class OD_Dataset(object):
-    def __init__(self,folders,transforms, min_area):
-        self.folders = folders
+    def __init__(self,datainfo,transforms, min_area):
+        self.folders = datainfo['topfolders']
+        self.dataf   = datainfo['datafolder']
+        self.imgf    = datainfo['imgfolder']
         self.transforms = transforms
         self.min_area = min_area
+        self.imgs = []
+        self.anns = []
 
         #load names of image files and corresponding annotation files
-        imgs = list(sorted(os.listdir(folders[0])))
-        anns = []
-        for img in imgs:
-            m = re_fbase.search(img)
-            anns.append(m.group(1) + '_objs.txt')
-
-        self.imgs, self.anns = filter_imgs_by_objarea(anns,imgs, self.folders[1], self.min_area)
+        for fld in self.folders:
+            img_fld = os.path.join(fld,self.imgf)
+            imgs = list(sorted(os.listdir(img_fld)))
+            anns = []
+            imgs_mod = []
+            for img in imgs:
+                m = re_fbase.search(img)
+                anns.append(os.path.join(fld, self.dataf, m.group(1) + '_objs.txt'))
+                imgs_mod.append(os.path.join(fld, self.imgf, img))
+                #imgs = map(lambda: p, f: p + f, fld * len(imgs), imgs)
+            imgs_mod, anns = filter_imgs_by_objarea(anns,imgs_mod,self.min_area)
+            self.imgs.extend(imgs_mod)
+            self.anns.extend(anns)
+        #pdb.set_trace()
 
     def __getitem__(self,idx):
-        img_path = os.path.join(self.folders[0], self.imgs[idx])
-        ann_path = os.path.join(self.folders[1], self.anns[idx])
+        #img_path = os.path.join(self.folders[0], self.imgs[idx])
+        #ann_path = os.path.join(self.folders[1], self.anns[idx])
+        img_path = self.imgs[idx]
+        ann_path = self.anns[idx]
         img = Image.open(img_path).convert("RGB")
 
         #load annotations
+        #boxes, labels = read_anns(ann_path)
         boxes = []
         labels = []
         with open(ann_path) as f:

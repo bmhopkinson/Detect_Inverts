@@ -6,6 +6,7 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from engine import train_one_epoch, evaluate
 import utils
 import transforms as T
+import os
 import pdb
 from PIL import Image, ImageDraw, ImageFont
 
@@ -33,7 +34,7 @@ def setup_model(num_classes):
 def main():
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-    #set up model
+    #set up model                    imgPIL.save( m.group(1) + "_preds.jpg","JPEG")
     model_state_file = 'faster_rcnn_snails.pt'
     num_classes = 2
     model = setup_model(num_classes)
@@ -42,8 +43,9 @@ def main():
     model.to(device)
 
     # setup datasets and dataloaders
-    folder = ['./Data/Snails_2_BH/OD_imgs_test','./Data/Snails_2_BH/OD_data_test']
-    dataset = OD_Dataset(folder,get_transform(train=False), min_area)
+    test_datainfo = {'topfolders' : ['./Data/Snails_2_BH', './Data/Snails_3_2015'], 'datafolder' :'OD_data_test', 'imgfolder' : 'OD_imgs_test' }
+    #folder = ['./Data/Snails_2_BH/OD_imgs_test','./Data/Snails_2_BH/OD_data_test']
+    dataset = OD_Dataset(test_datainfo,get_transform(train=False), min_area)
     data_loader = torch.utils.data.DataLoader(dataset, batch_size = 1,
             shuffle=False, num_workers = 4, collate_fn= utils.collate_fn)
 
@@ -75,9 +77,12 @@ def main():
                 for box in true_boxes:
                     draw.rectangle(box, outline = (255,0,0,127), width=3)
                 imgPIL = Image.alpha_composite(imgPIL, overlay_true).convert("RGB")
-
-                imgPIL.save("./output/"+ dataset.imgs[target["image_id"]] + "_preds.jpg","JPEG")
-
+                img_path = os.path.join("./output",dataset.imgs[target["image_id"]] + "_preds.jpg" )
+                dir = os.path.dirname(img_path)
+                if not os.path.isdir(dir):
+                    os.makedirs(dir)
+                #imgPIL.save("./output/"+ dataset.imgs[target["image_id"]] + "_preds.jpg","JPEG")
+                imgPIL.save(img_path,"JPEG")
 
 if __name__ == '__main__':
     main()
