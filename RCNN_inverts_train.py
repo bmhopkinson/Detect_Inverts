@@ -32,8 +32,9 @@ def main():
     # setup datasets and dataloaders
     train_datainfo = {'topfolders' : ['./Data/Snails_2_BH', './Data/Snails_3_2015'], 'datafolder' :'OD_data_train', 'imgfolder' : 'OD_imgs_train' }
     val_datainfo   = {'topfolders' : ['./Data/Snails_2_BH', './Data/Snails_3_2015'], 'datafolder' :'OD_data_val',   'imgfolder' : 'OD_imgs_val'   }
-    #folder_train = ['./Data/Snails_2_BH/OD_imgs_train','./Data/Snails_2_BH/OD_data_train']
-    #folder_val   = ['./Data/Snails_2_BH/OD_imgs_val'  ,'./Data/Snails_2_BH/OD_data_val'  ]
+    #train_datainfo = {'topfolders' : ['./Data/Snails_3_2015'], 'datafolder' :'OD_data_train', 'imgfolder' : 'OD_imgs_train' }
+    #val_datainfo   = {'topfolders' : ['./Data/Snails_3_2015'], 'datafolder' :'OD_data_val',   'imgfolder' : 'OD_imgs_val'   }
+
     dataset_train = OD_Dataset(train_datainfo,get_transform(train=True) , min_area )
     dataset_val   = OD_Dataset(val_datainfo  ,get_transform(train=False), min_area )
     #print("length of val dataset {}".format(len(dataset_val)))
@@ -73,7 +74,7 @@ def main():
         # evaluate on the test dataset
         evaluate(model, data_loader_val, logfile, device=device)
 
-    torch.save(model.state_dict(),"faster_rcnn_snails_test.pt")
+    torch.save(model.state_dict(),"faster_rcnn_snails_2014_2015.pt")
     print("That's it!")
 
 

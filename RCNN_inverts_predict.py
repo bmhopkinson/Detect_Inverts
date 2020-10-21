@@ -16,13 +16,14 @@ re_fbase = re.compile('^(.*)\.[jJ][pP][eE]?[gG]')
 
 num_classes = 2
 score_threshold = 0.80
-OUTPUT_IMAGES = True
-img_input_folder = './Data/2014'  #each directory (and its subdirectories) within this folder is processed as a unit
+OUTPUT_TMP_IMAGES = False
+model_state_file = 'faster_rcnn_snails_2014_2015.pt'
+img_input_folder = './Data/2015'  #each directory (and its subdirectories) within this folder is processed as a unit
 #img_input_folder = './Data/Snails_pred_wholetest'
 section_dim = [7, 6]  #columns, rows to split input image into
 pred_format = "{}\t{:4.3f}\t{:5.1f}\t{:5.1f}\t{:5.1f}\t{:5.1f}\n"
 
-params = {'dim':section_dim, 'fmt': pred_format,'re_fbase': re_fbase, 'n_proc' : 8}
+params = {'dim':section_dim, 'fmt': pred_format,'re_fbase': re_fbase, 'n_proc' : 8, 'write_imgs': True}
 
 def get_transform(train):
     transforms = []
@@ -63,7 +64,7 @@ def make_predictions(model, data_loader, device):
                 m = params['re_fbase'].search(name)
                 fn_out =  m.group(1) + '_preds.txt'
                 helpers.write_pred(fn_out,pdata_filt,params)
-                if OUTPUT_IMAGES:
+                if OUTPUT_TMP_IMAGES:
                     img = img.to('cpu')
                     img = torchvision.transforms.ToPILImage()(img).convert("RGBA")
                     helpers.write_image(name, pdata_filt,img, params)
@@ -72,7 +73,7 @@ def main():
 
     #set up model
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-    model_state_file = 'faster_rcnn_snails.pt'
+
     model = setup_model(num_classes)
     model.load_state_dict(torch.load(model_state_file))
     model.eval()

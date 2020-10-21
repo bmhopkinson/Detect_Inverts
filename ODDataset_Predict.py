@@ -2,12 +2,12 @@ import os
 import numpy as np
 import torch
 import csv
-from PIL import Image
+from PIL import Image, ExifTags
 import pdb
 import re
+import helpers
 
 re_fbase = re.compile('^(.*)\.[jJ][pP][eE]?[gG]')
-
 
 class OD_Dataset_Predict(object):
     def __init__(self,folder,transforms):
