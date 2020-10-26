@@ -1,17 +1,12 @@
 import os
-import cv2
-import numpy as np
 import re
-import parse
-import pdb
-import multiprocessing as mp
+import cv2
 import math
+import numpy as np
+import multiprocessing as mp
 from PIL import Image, ImageDraw, ImageFont, ExifTags
 
-
 path_regex = re.compile('.+?/(.*)$')
-#jpg_regex  = re.compile('^(.*)\.[jJ][pP][eE]?[gG]')
-#temp_regex = re.compile('./tmp(.*)')
 
 def PIL_to_cv2(img_PIL):
     return cv2.cvtColor(np.asarray(img_PIL), cv2.COLOR_RGB2BGR)
@@ -33,11 +28,6 @@ def write_image(name, data, imgPIL, params):
     imgPIL.save( m.group(1) + "_preds.jpg","JPEG")
 
 
-def write_pred(fname, data, params):
-    fout = open(fname,'w')
-    for b, l, s in zip(data['boxes'], data['labels'], data['scores']):
-        fout.write(params['fmt'].format(l, s, b[0], b[1], b[2], b[3]))
-    fout.close()
 
 
 def extract_exif_data(img):
@@ -59,49 +49,31 @@ def text_exif_labels(exif):
 
     return labeled
 
-def properly_orient_image(img):
-    img_exif = extract_exif_data(img)
+def properly_orient_image(image):
+    img_exif = extract_exif_data(image)
     if(img_exif):
       img_exif = text_exif_labels(img_exif)
     else:
-      return img
+      return image
+
+    orient_to_angle = {
+        1: 0,
+        3: 180,
+        6: 90,
+        8: 270
+    }
 
     if('Orientation' in img_exif):
-        orientation = img_exif['Orientation']
-#        print(orientation)
-
-        if orientation == 3:
-          img = img.rotate(180, expand = True)
-        elif orientation == 6:
-        #  print("rotating image")
-          img = img.rotate(90, expand = True)
-        elif orientation == 8:
-          img = img.rotate(270, expand = True)
+        orient = img_exif['Orientation']
+        image = image.rotate(orient_to_angle[orient], expand = True)
 
     else:
         if hasattr(img, 'filename'):
-          print('no orientation in exif of {}'.format(img.filename))
+          print('no orientation in exif of {}'.format(image.filename))
         else:
           print('no orientation in exif of image')
 
-    return img
-
-def _section_single_image(im, section_dim):
-   sections = []  #image sections
-   offsets = []   #x,y offests of sections
-   n_wide = section_dim[0]
-   n_high = section_dim[1]
-   im_height , im_width = im.shape[:2]
-   x_b = np.linspace(0,im_width , n_wide +1, dtype='int')
-   y_b = np.linspace(0,im_height, n_high +1, dtype='int')
-
-   for i in range(n_high):
-     for j in range(n_wide):
-        im_sec = im[y_b[i]:y_b[i+1],x_b[j]:x_b[j+1]]
-        sections.append(im_sec)
-        offsets.append([x_b[j], y_b[i]])
-
-   return sections, offsets
+    return image
 
 #rotate_image() is from https://stackoverflow.com/questions/43892506/opencv-python-rotate-image-without-cropping-sides/47248339
 
@@ -131,9 +103,30 @@ def rotate_image(mat, angle):
     rotated_mat = cv2.warpAffine(mat, rotation_mat, (bound_w, bound_h))
     return rotated_mat
 
+
+
+
+def _section_single_image(im, section_dim):
+   sections = []  #image sections
+   offsets = []   #x,y offests of sections
+   n_wide = section_dim[0]
+   n_high = section_dim[1]
+   im_height , im_width = im.shape[:2]
+   x_b = np.linspace(0,im_width , n_wide +1, dtype='int')
+   y_b = np.linspace(0,im_height, n_high +1, dtype='int')
+
+   for i in range(n_high):
+     for j in range(n_wide):
+        im_sec = im[y_b[i]:y_b[i+1],x_b[j]:x_b[j+1]]
+        sections.append(im_sec)
+        offsets.append([x_b[j], y_b[i]])
+
+   return sections, offsets
+
+
 #_section_images is core of splitting image - called by parallel prosesing pool
 def  _section_images(sec_data,files, dirpath, params):
-
+#    files = [f for f in files if not re.match(r'^\.',f)] #remove mac hidden files which start with dot
     for name in files:
         fullpath = os.path.join(dirpath,name)
         m = path_regex.findall(dirpath)
@@ -146,18 +139,11 @@ def  _section_images(sec_data,files, dirpath, params):
                 os.makedirs(new_dirpath)
 
             file_base = os.path.splitext(name)[0]
-            #print(fullpath)
-            #im = cv2.imread(fullpath)
-#            print('formating {}'.format(fullpath))
+
             with Image.open(fullpath) as im:   #PIL image is lazy loading, weird file acces, so best to manage context using "with"
                 im_rot = properly_orient_image(im)
                 im_rot = PIL_to_cv2(im_rot)
-            #height , width = im.shape[:2]
 
-            #if width < height:
-            #    im_rot = rotate_image(im, 90);
-            #else:
-            #    im_rot = im;
                 im_sections, offsets = _section_single_image(im_rot, params['dim'])
 
                 for i in range(len(im_sections)):
@@ -181,6 +167,7 @@ def section_images(infolder, params):
     for (dirpath, dirname, files) in os.walk(infolder, topdown='True'):
         #send image files to split to n_proc different processes - all data is added to sec_data (manager.dict() - thread safe dict)
         jobs = []
+        files = [f for f in files if not re.match(r'^\.',f)] #remove mac hidden files which start with dot
         for chunk in chunks(files,math.ceil(len(files)/n_proc)):
             #pdb.set_trace()
             #pool.apply(_fsec, args = (sec_data,chunk, dirpath, params))  #this didn't work for me - always used a single core
@@ -192,56 +179,3 @@ def section_images(infolder, params):
             j.join()
 
     return sec_data
-
-def _assemble_predictions(im_files, section_data,params):
-    for im_file in im_files:
-        labels = []
-        scores = []
-        boxes = []
-        section_dim = params['dim']
-        fmt_str = params['fmt']
-        n_sec = section_dim[0] * section_dim[1]
-        offsets = section_data[im_file][1]
-        for i in range(n_sec):
-            fname = im_file + "_" + str(i) + "_preds.txt"
-            f = open(fname,'r')
-            for line in f:
-                pl = parse.parse(fmt_str,line)
-                #pdb.set_trace()
-                labels.append(int(pl[0]))
-                scores.append(pl[1])
-                boxes.append([pl[2] + offsets[i][0], pl[3] + offsets[i][1], pl[4] + offsets[i][0], pl[5] + offsets[i][1] ])
-
-            f.close()
-        pred_data = {'labels': labels, 'scores': scores, 'boxes': boxes}  #package data in standard format
-
-        #setup output files and directories
-        full_img_file = section_data[im_file][0]
-        m = path_regex.search(full_img_file)
-        out_img_file = os.path.join('./Preds',m.group(1))
-        out_dir = os.path.dirname(out_img_file)
-        if not os.path.isdir(out_dir):
-            os.makedirs(out_dir)
-        m2 = params['re_fbase'].search(out_img_file)
-        out_preds_file    = m2.group(1) + '_preds.txt'
-
-        #write out predictions
-        write_pred(out_preds_file, pred_data, params)
-
-        #mark predictions on images
-        if params['write_imgs']:
-            full_img = Image.open(full_img_file)
-            full_img = properly_orient_image(full_img)
-            full_img = full_img.convert("RGBA")
-            write_image(out_img_file, pred_data, full_img, params)
-
-def assemble_predictions(section_data, params):
-    n_proc = params['n_proc']
-    jobs = []
-    for chunk in chunks(section_data.keys(),math.ceil(len(section_data.keys())/n_proc)):
-        j = mp.Process(target = _assemble_predictions, args = (chunk, section_data, params)) #this works - actually uses multiple cores
-        j.start()
-        jobs.append(j)
-
-    for j in jobs:
-        j.join()

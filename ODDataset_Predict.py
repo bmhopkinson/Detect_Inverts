@@ -17,9 +17,10 @@ class OD_Dataset_Predict(object):
         #load names of image files and corresponding annotation files
         img_fnames = []
         for (dirpath, dirname, files) in os.walk(folder, topdown='True'):
-                for name in files:
-                    fullpath = os.path.join(dirpath,name)
-                    img_fnames.append(fullpath)
+            files = [f for f in files if not re.match(r'^\.',f)] #remove mac hidden files which start with dot
+            for name in files:
+                fullpath = os.path.join(dirpath,name)
+                img_fnames.append(fullpath)
         self.imgs = img_fnames
 
     def __getitem__(self,idx):

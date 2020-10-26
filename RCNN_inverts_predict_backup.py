@@ -9,11 +9,8 @@ import pdb
 import os
 import shutil
 import re
-#from helpers import pred
-import time
-#import helpers.help_image
-#import helpers.help_pred
 import helpers
+import time
 
 re_fbase = re.compile('^(.*)\.[jJ][pP][eE]?[gG]')
 
@@ -26,7 +23,7 @@ img_input_folder = './Data/2015'  #each directory (and its subdirectories) withi
 section_dim = [7, 6]  #columns, rows to split input image into
 pred_format = "{}\t{:4.3f}\t{:5.1f}\t{:5.1f}\t{:5.1f}\t{:5.1f}\n"
 
-params = {'dim':section_dim, 'fmt': pred_format,'re_fbase': re_fbase, 'n_proc' : 8, 'write_imgs': True}
+params = {'dim':section_dim, 'fmt': pred_format,'re_fbase': re_fbase, 'n_proc' : 8, 'write_imgs': False}
 
 def get_transform(train):
     transforms = []
@@ -66,11 +63,11 @@ def make_predictions(model, data_loader, device):
 
                 m = params['re_fbase'].search(name)
                 fn_out =  m.group(1) + '_preds.txt'
-                helpers.pred.write_pred(fn_out,pdata_filt,params)
+                helpers.write_pred(fn_out,pdata_filt,params)
                 if OUTPUT_TMP_IMAGES:
                     img = img.to('cpu')
                     img = torchvision.transforms.ToPILImage()(img).convert("RGBA")
-                    helpers.image.write_image(name, pdata_filt,img, params)
+                    helpers.write_image(name, pdata_filt,img, params)
 
 def main():
 
@@ -95,7 +92,7 @@ def main():
         else:
             os.mkdir(tmp_folder)
         params['outfld'] = tmp_folder
-        section_data = helpers.image.section_images(base_folder,  params)
+        section_data = helpers.section_images(base_folder,  params)
 
         # setup datasets and dataloaders
         dataset = OD_Dataset_Predict(tmp_folder,get_transform(train=False))
@@ -105,7 +102,7 @@ def main():
 
         make_predictions(model, data_loader, device)
 
-        helpers.pred.assemble_predictions(section_data, params)
+        helpers.assemble_predictions(section_data, params)
 
         stop = time.time();
         delta_t = stop - start
