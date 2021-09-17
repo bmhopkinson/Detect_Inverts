@@ -1,11 +1,11 @@
 import numpy as np
 import torch
-from ODDataset_Train import OD_Dataset
 import torchvision
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from engine import train_one_epoch, evaluate
 import utils
-import transforms as T
+from dataloaders.ODDataset_Train import OD_Dataset
+import dataloaders.transforms as T
 
 num_classes = 2
 min_area = 1 #minimum object size in pixels^2
@@ -63,7 +63,7 @@ def main():
                                                    gamma=0.1)
 
     # let's train it for X epochs
-    num_epochs = 5
+    num_epochs = 1
     logfile = open("logfile_training_size_>1_SGD.txt",'w')
 
     for epoch in range(num_epochs):
@@ -74,7 +74,7 @@ def main():
         # evaluate on the test dataset
         evaluate(model, data_loader_val, logfile, device=device)
 
-    torch.save(model.state_dict(),"faster_rcnn_snails_2014_2015.pt")
+    torch.save(model.state_dict(),"faster_rcnn_snails.pt")
     print("That's it!")
 
 

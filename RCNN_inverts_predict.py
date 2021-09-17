@@ -1,10 +1,9 @@
-import numpy as np
 import torch
-from ODDataset_Predict import OD_Dataset_Predict
 import torchvision
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 import utils
-import transforms as T
+from dataloaders.ODDataset_Predict import OD_Dataset_Predict
+import dataloaders.transforms as T
 import pdb
 import os
 import shutil
@@ -20,13 +19,14 @@ re_fbase = re.compile('^(.*)\.[jJ][pP][eE]?[gG]')
 num_classes = 2
 score_threshold = 0.80
 OUTPUT_TMP_IMAGES = False
-model_state_file = 'faster_rcnn_snails_2014_2015.pt'
-img_input_folder = './Data/2015'  #each directory (and its subdirectories) within this folder is processed as a unit
-#img_input_folder = './Data/Snails_pred_wholetest'
+model_state_file = './model_archive/faster_rcnn_snails_2014_2015.pt'
+#img_input_folder = './Data/2015'  #each directory (and its subdirectories) within this folder is processed as a unit
+img_input_folder = './Data/Snails_pred_wholetest'
 section_dim = [7, 6]  #columns, rows to split input image into
 pred_format = "{}\t{:4.3f}\t{:5.1f}\t{:5.1f}\t{:5.1f}\t{:5.1f}\n"
+titles = "type\tscore\tx_min\ty_min\tx_max\ty_max\n"
 
-params = {'dim':section_dim, 'fmt': pred_format,'re_fbase': re_fbase, 'n_proc' : 8, 'write_imgs': True}
+params = {'dim':section_dim, 'fmt': pred_format, 'titles': titles, 're_fbase': re_fbase, 'n_proc' : 8, 'write_imgs': True}
 
 def get_transform(train):
     transforms = []

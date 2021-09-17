@@ -13,8 +13,10 @@ path_regex = re.compile('.+?/(.*)$')
 #temp_regex = re.compile('./tmp(.*)')
 
 
-def write_pred(fname, data, params):
+def write_pred(fname, data, params, write_header=False):
     fout = open(fname,'w')
+    if write_header:
+        fout.write(params['titles'])
     for b, l, s in zip(data['boxes'], data['labels'], data['scores']):
         fout.write(params['fmt'].format(l, s, b[0], b[1], b[2], b[3]))
     fout.close()
@@ -59,7 +61,7 @@ def _assemble_predictions(im_files, section_data,params):
         out_preds_file    = m2.group(1) + '_preds.txt'
 
         #write out predictions
-        write_pred(out_preds_file, pred_data, params)
+        write_pred(out_preds_file, pred_data, params, write_header=True)
 
         #mark predictions on images
         if params['write_imgs']:

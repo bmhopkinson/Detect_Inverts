@@ -1,11 +1,11 @@
 import numpy as np
 import torch
-from ODDataset_Train import OD_Dataset
 import torchvision
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from engine import train_one_epoch, evaluate
 import utils
-import transforms as T
+from dataloaders.ODDataset_Train import OD_Dataset
+import dataloaders.transforms as T
 import os
 import pdb
 from PIL import Image, ImageDraw, ImageFont
@@ -35,7 +35,7 @@ def main():
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     #set up model                    imgPIL.save( m.group(1) + "_preds.jpg","JPEG")
-    model_state_file = 'faster_rcnn_snails_2014_2015.pt'
+    model_state_file = 'faster_rcnn_snails.pt'
     num_classes = 2
     model = setup_model(num_classes)
     model.load_state_dict(torch.load(model_state_file))
