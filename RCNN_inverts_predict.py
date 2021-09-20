@@ -4,7 +4,7 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 import utils
 from dataloaders.ODDataset_Predict import OD_Dataset_Predict
 import dataloaders.transforms as T
-import pdb
+from tqdm import tqdm
 import os
 import shutil
 import re
@@ -21,7 +21,8 @@ score_threshold = 0.80
 OUTPUT_TMP_IMAGES = False
 model_state_file = './model_archive/faster_rcnn_snails_2014_2015.pt'
 #img_input_folder = './Data/2015'  #each directory (and its subdirectories) within this folder is processed as a unit
-img_input_folder = './Data/Snails_pred_wholetest'
+#img_input_folder = './Data/Snails_pred_wholetest'
+img_input_folder = './Data/Sapelo_202106'
 section_dim = [7, 6]  #columns, rows to split input image into
 pred_format = "{}\t{:4.3f}\t{:5.1f}\t{:5.1f}\t{:5.1f}\t{:5.1f}\n"
 titles = "type\tscore\tx_min\ty_min\tx_max\ty_max\n"
@@ -44,7 +45,8 @@ def setup_model(num_classes):
 
 def make_predictions(model, data_loader, device):
     with torch.no_grad():
-        for it, sample in enumerate(data_loader):
+        tbar = tqdm(data_loader, desc='predictions')
+        for it, sample in enumerate(tbar):
             images = list(image.to(device) for image in sample[0])
             names = sample[1]
             preds = model(images)
