@@ -27,9 +27,6 @@ def write_image(name, data, imgPIL, params):
         os.makedirs(dir)
     imgPIL.save( m.group(1) + "_preds.jpg","JPEG")
 
-
-
-
 def extract_exif_data(img):
     img_exif = []
     try:
@@ -68,7 +65,7 @@ def properly_orient_image(image):
         image = image.rotate(orient_to_angle[orient], expand = True)
 
     else:
-        if hasattr(img, 'filename'):
+        if hasattr(image, 'filename'):
           print('no orientation in exif of {}'.format(image.filename))
         else:
           print('no orientation in exif of image')
@@ -103,9 +100,6 @@ def rotate_image(mat, angle):
     rotated_mat = cv2.warpAffine(mat, rotation_mat, (bound_w, bound_h))
     return rotated_mat
 
-
-
-
 def _section_single_image(im, section_dim):
    sections = []  #image sections
    offsets = []   #x,y offests of sections
@@ -139,11 +133,9 @@ def  _section_images(sec_data,files, dirpath, params):
                 os.makedirs(new_dirpath)
 
             file_base = os.path.splitext(name)[0]
-
             with Image.open(fullpath) as im:   #PIL image is lazy loading, weird file acces, so best to manage context using "with"
                 im_rot = properly_orient_image(im)
                 im_rot = PIL_to_cv2(im_rot)
-
                 im_sections, offsets = _section_single_image(im_rot, params['dim'])
 
                 for i in range(len(im_sections)):

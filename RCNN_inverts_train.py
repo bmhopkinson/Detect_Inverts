@@ -9,6 +9,8 @@ import dataloaders.transforms as T
 
 num_classes = 2
 min_area = 1 #minimum object size in pixels^2
+num_epochs = 1
+model_save_path = "faster_rcnn_snails.pt"
 
 def get_transform(train):
     transforms = []
@@ -30,10 +32,10 @@ def main():
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     # setup datasets and dataloaders
-    train_datainfo = {'topfolders' : ['./Data/Snails_2_BH', './Data/Snails_3_2015'], 'datafolder' :'OD_data_train', 'imgfolder' : 'OD_imgs_train' }
-    val_datainfo   = {'topfolders' : ['./Data/Snails_2_BH', './Data/Snails_3_2015'], 'datafolder' :'OD_data_val',   'imgfolder' : 'OD_imgs_val'   }
-    #train_datainfo = {'topfolders' : ['./Data/Snails_3_2015'], 'datafolder' :'OD_data_train', 'imgfolder' : 'OD_imgs_train' }
-    #val_datainfo   = {'topfolders' : ['./Data/Snails_3_2015'], 'datafolder' :'OD_data_val',   'imgfolder' : 'OD_imgs_val'   }
+    #train_datainfo = {'topfolders' : ['./Data/Snails_2_BH', './Data/Snails_3_2015'], 'datafolder' :'OD_data_train', 'imgfolder' : 'OD_imgs_train' }
+    #val_datainfo   = {'topfolders' : ['./Data/Snails_2_BH', './Data/Snails_3_2015'], 'datafolder' :'OD_data_val',   'imgfolder' : 'OD_imgs_val'   }
+    train_datainfo = {'topfolders' : ['./Data/Snails_3_2015'], 'datafolder' :'OD_data_train', 'imgfolder' : 'OD_imgs_train' }
+    val_datainfo   = {'topfolders' : ['./Data/Snails_3_2015'], 'datafolder' :'OD_data_val',   'imgfolder' : 'OD_imgs_val'   }
 
     dataset_train = OD_Dataset(train_datainfo,get_transform(train=True) , min_area )
     dataset_val   = OD_Dataset(val_datainfo  ,get_transform(train=False), min_area )
@@ -63,7 +65,6 @@ def main():
                                                    gamma=0.1)
 
     # let's train it for X epochs
-    num_epochs = 1
     logfile = open("logfile_training_size_>1_SGD.txt",'w')
 
     for epoch in range(num_epochs):
@@ -74,7 +75,7 @@ def main():
         # evaluate on the test dataset
         evaluate(model, data_loader_val, logfile, device=device)
 
-    torch.save(model.state_dict(),"faster_rcnn_snails.pt")
+    torch.save(model.state_dict(), model_save_path)
     print("That's it!")
 
 

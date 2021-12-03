@@ -14,7 +14,7 @@ from coco_eval import CocoEvaluator
 import utils
 
 
-def train_one_epoch(model, optimizer, data_loader, device, epoch,logfile, print_freq):
+def train_one_epoch(model, optimizer, data_loader, device, epoch, logfile, print_freq):
     model.train()
     metric_logger = utils.MetricLogger(logfile, delimiter="  ")
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))

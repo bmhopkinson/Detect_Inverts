@@ -102,7 +102,7 @@ def main():
         # setup datasets and dataloaders
         dataset = OD_Dataset_Predict(tmp_folder,get_transform(train=False))
 
-        data_loader = torch.utils.data.DataLoader(dataset, batch_size = 4,
+        data_loader = torch.utils.data.DataLoader(dataset, batch_size = 8,
                 shuffle=False, num_workers = 4, collate_fn= utils.collate_fn)
 
         make_predictions(model, data_loader, device)
