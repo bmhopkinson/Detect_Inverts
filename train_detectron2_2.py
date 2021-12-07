@@ -105,20 +105,29 @@ def get_evaluator(cfg, dataset_name, output_folder=None):
     return DatasetEvaluators(evaluator_list)
 
 
-def do_test(cfg, model):
+def do_test(cfg, model, data_dicts):
     results = OrderedDict()
-    for dataset_name in cfg.DATASETS.TEST:
-        data_loader = build_detection_test_loader(cfg, dataset_name)
-        evaluator = get_evaluator(
-            cfg, dataset_name, os.path.join(cfg.OUTPUT_DIR, "inference", dataset_name)
-        )
-        results_i = inference_on_dataset(model, data_loader, evaluator)
-        results[dataset_name] = results_i
-        if comm.is_main_process():
-            logger.info("Evaluation results for {} in csv format:".format(dataset_name))
-            print_csv_format(results_i)
-    if len(results) == 1:
-        results = list(results.values())[0]
+    dataset_name = "snails_val"
+   # for dataset_name in cfg.DATASETS.TEST:
+   # data_loader = build_detection_test_loader(cfg, dataset_name)
+
+
+
+    data_loader = build_detection_test_loader(data_dicts, mapper=DatasetMapper(cfg, is_train=False, augmentations=[
+                                           T.Resize((800, 800))]))
+
+    evaluator = COCOEvaluator(dataset_name, output_dir="./output")
+    #evaluator = get_evaluator(
+    #    cfg, dataset_name, os.path.join(cfg.OUTPUT_DIR, "inference", dataset_name)
+    #)
+    results_i = inference_on_dataset(model, data_loader, evaluator)
+    #print(inference_on_dataset(model, data_loader, evaluator))
+    results[dataset_name] = results_i
+    if comm.is_main_process():
+        logger.info("Evaluation results for {} in csv format:".format(dataset_name))
+        print_csv_format(results_i)
+  #  if len(results) == 1:
+    results = list(results.values())[0]
     return results
 
 
@@ -143,12 +152,9 @@ def do_train(cfg, model, data_dicts, resume=False):
 
     # compared to "train_net.py", we do not support accurate timing and
     # precise BN here, because they are not trivial to implement in a small training loop
-   # data_loader = build_detection_train_loader(data_dicts, mapper=DatasetMapper(cfg, is_train=True, augmentations=[
-     #                                       T.Resize((800, 800))]))
+    data_loader = build_detection_train_loader(data_dicts, mapper=DatasetMapper(cfg, is_train=True, augmentations=[
+                                           T.Resize((800, 800))]), total_batch_size=4)
     #
-    data_loader = DefaultTrainer(cfg)
-
-
     logger.info("Starting training from iteration {}".format(start_iter))
     with EventStorage(start_iter) as storage:
         for data, iteration in zip(data_loader, range(start_iter, max_iter)):
@@ -193,7 +199,7 @@ def setup(args):
     cfg = get_cfg()
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
-    cfg.freeze()
+   # cfg.freeze()
     default_setup(
         cfg, args
     )  # if you don't like any of the default setup, write your own setup code
@@ -261,16 +267,34 @@ def main(args):
 
     anns_paths_train = ["./Data/Snails_3_2015/OD_data_train", "./Data/Snails_2_BH/OD_data_train"]
     img_paths_train = ["./Data/Snails_3_2015/OD_imgs_train", "./Data/Snails_2_BH/OD_imgs_train"]
-    data_dicts =[]
-    for d, ann_path, img_path in zip(["train_1", "train_2"], anns_paths_train, img_paths_train):
-        f = lambda a=ann_path, i=img_path: get_snails_dicts(a, i)
-        DatasetCatalog.register("snails_" + d, f)
-        MetadataCatalog.get("snails_" + d).set(thing_classes=["snails"])
 
-    cfg.DATASETS.TRAIN = ("snails_train_1", "snails_train_2",)
+    anns_paths_val = ["./Data/Snails_3_2015/OD_data_val", "./Data/Snails_2_BH/OD_data_val"]
+    img_paths_val = ["./Data/Snails_3_2015/OD_imgs_val", "./Data/Snails_2_BH/OD_imgs_val"]
 
-    do_train(cfg, model, data_dicts,  resume=args.resume)
-    return do_test(cfg, model)
+    anns_paths = [*anns_paths_train, *anns_paths_val]
+    img_paths = [*img_paths_train, *img_paths_val]
+    split = [*(['train']*len(anns_paths_train)), *(['val']*len(anns_paths_val))]
+
+    data_dicts_train = []
+    data_dicts_val = []
+    for d, ann_path, img_path in zip(split, anns_paths, img_paths):
+        #f = lambda a=ann_path, i=img_path: get_snails_dicts(a, i)
+        #DatasetCatalog.register("snails_" + d, f)
+        #MetadataCatalog.get("snails_" + d).set(thing_classes=["snails"])
+
+        if d == 'train':
+            data_dicts_train.extend(get_snails_dicts(ann_path, img_path))
+        elif d == 'val':
+            data_dicts_val.extend(get_snails_dicts(ann_path, img_path))
+   # cfg.DATASETS.TRAIN = ("snails_train_1", "snails_train_2",)
+
+    f = lambda a=anns_paths_val[0], i = img_paths_val[0]: get_snails_dicts(a, i)
+    DatasetCatalog.register("snails_val", f )
+    MetadataCatalog.get("snails_val").set(thing_classes=["snails"])
+    data_dict_val_single = get_snails_dicts(anns_paths_val[0], img_paths_val[0])
+
+    do_train(cfg, model, data_dicts_train,  resume=args.resume)
+    return do_test(cfg, model, data_dict_val_single)
 
 
 if __name__ == "__main__":
