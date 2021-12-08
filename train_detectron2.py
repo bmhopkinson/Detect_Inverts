@@ -63,12 +63,12 @@ snails_metadata = MetadataCatalog.get("snails_train")
 
 dataset_dicts = get_snails_dicts(anns_paths[0], img_paths[0])
 
-for d in random.sample(dataset_dicts, 3):
+for d in random.sample(dataset_dicts, 10):
     img = cv2.imread(d["file_name"])
-    visualizer = Visualizer(img[:, :, ::-1], metadata=snails_metadata, scale=0.5)
+    visualizer = Visualizer(img[:, :, ::-1], metadata=snails_metadata, scale=1.0)
     out = visualizer.draw_dataset_dict(d)
     cv2.imshow('train', out.get_image()[:, :, ::-1])
-    cv2.waitKey(1000)
+    cv2.waitKey(3000)
 
 
 from detectron2.engine import DefaultTrainer

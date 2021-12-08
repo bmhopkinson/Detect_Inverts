@@ -11,7 +11,7 @@ import pdb
 from PIL import Image, ImageDraw, ImageFont
 
 num_classes = 2
-score_threshold = 0.70
+score_threshold = 0.50
 min_area = 1 #minimum object size in pixels^2
 logfile_name = "logfile_test.txt"
 OUTPUT_IMAGES = True
@@ -35,7 +35,7 @@ def main():
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     #set up model                    imgPIL.save( m.group(1) + "_preds.jpg","JPEG")
-    model_state_file = 'faster_rcnn_snails.pt'
+    model_state_file = './model_archive/faster_rcnn_snails_2014_2015.pt'
     num_classes = 2
     model = setup_model(num_classes)
     model.load_state_dict(torch.load(model_state_file))
