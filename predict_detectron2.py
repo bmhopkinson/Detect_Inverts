@@ -6,7 +6,7 @@ from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.engine import DefaultPredictor
 from detectron2.utils.visualizer import Visualizer
 
-config_file = "detectron2_configs.yaml"
+config_file = "detectron2_frcnn_resnet50_configs.yaml"
 model_path = "./model_archive/frcnn_detectron_2_lr_005.pth"
 cfg = get_cfg()
 cfg.merge_from_file(config_file)

@@ -63,22 +63,24 @@ snails_metadata = MetadataCatalog.get("snails_train")
 
 dataset_dicts = get_snails_dicts(anns_paths[0], img_paths[0])
 
-for d in random.sample(dataset_dicts, 10):
+for d in random.sample(dataset_dicts, 5):
     img = cv2.imread(d["file_name"])
     visualizer = Visualizer(img[:, :, ::-1], metadata=snails_metadata, scale=1.0)
     out = visualizer.draw_dataset_dict(d)
     cv2.imshow('train', out.get_image()[:, :, ::-1])
-    cv2.waitKey(3000)
+    cv2.waitKey(2000)
 
 
 from detectron2.engine import DefaultTrainer
 
+#config_base = "COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml"
+config_base = "COCO-Detection/retinanet_R_50_FPN_3x.yaml"
 cfg = get_cfg()
-cfg.merge_from_file(model_zoo.get_config_file("COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml"))
+cfg.merge_from_file(model_zoo.get_config_file(config_base))
 cfg.DATASETS.TRAIN = ("snails_train_1", "snails_train_2",)
 cfg.DATASETS.TEST = ()
 cfg.DATALOADER.NUM_WORKERS = 8
-cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url("COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml")  # Let training initialize from model zoo
+cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(config_base)  # Let training initialize from model zoo
 cfg.SOLVER.IMS_PER_BATCH = 2
 cfg.SOLVER.BASE_LR = 0.00025  # pick a good LR
 cfg.SOLVER.MAX_ITER = 300    # 300 iterations seems good enough for this toy dataset; you will need to train longer for a practical dataset
@@ -87,7 +89,7 @@ cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 64   # faster, and good enough for th
 cfg.MODEL.ROI_HEADS.NUM_CLASSES = 1  # only has one class (ballon). (see https://detectron2.readthedocs.io/tutorials/datasets.html#update-the-config-for-new-datasets)
 # NOTE: this config means the number of classes, but a few popular unofficial tutorials incorrect uses num_classes+1 here.
 
-with open("detectron2_configs.yaml", "w") as f:
+with open("detectron2_retinanet_R_50_FPN_configs.yaml", "w") as f:
     f.write(cfg.dump())
 
 
