@@ -29,6 +29,8 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, logfile, print
 
     for images, targets in metric_logger.log_every(data_loader, print_freq, header):
         images = list(image.to(device) for image in images)
+
+    #    print(targets)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
         loss_dict = model(images, targets)
@@ -68,26 +70,31 @@ def _get_iou_types(model):
         iou_types.append("keypoints")
     return iou_types
 
+def rec_dd(): #recursive default dict
+    return defaultdict(rec_dd)
+
 def filter_results(coco_evaluator, score_thresh):
     #currently only works for a single object class
     coco_eval = coco_evaluator.coco_eval["bbox"]
-    #coco_eval.evaluate()
     #clear matches below threshold, then evaluate precision, recall
-    #numpy version
-    #fitler results
-    evalFilt = defaultdict(dict)
+
+    evalFilt = rec_dd()
     p = coco_eval.params
     for idx, img in enumerate(coco_eval.evalImgs):
         #pdb.set_trace()
+        if img is None:  #no objects were detected
+            continue
+        category = img['category_id']
         dtMatches = np.copy(img['dtMatches'])
         nT = len(dtMatches)
-        iclr = [  s < score_thresh  for s in img['dtScores']]
+        iclr = [s < score_thresh for s in img['dtScores']]
         iclr_np = np.asarray(iclr, dtype=bool)
-        dtMatches[:,iclr_np] = -1.0  #indicates to ignore
+        dtMatches[:, iclr_np] = -1.0  #indicates to ignore
+        dtids_to_idx = {int(dtid): idx for idx, dtid in enumerate(img['dtIds'])}  #map from detected id to index of iclr (ids are not always == to idx)
+
 
         gtMatches = np.zeros(img['gtMatches'].shape)
         gtMatches_filt = []
-        gtIds = img['gtIds']
         #pdb.set_trace()
         for i, gtM in enumerate(np.copy(img['gtMatches'])):
             #gtM_fr = [0.0 if iclr[int(m)] else m for m in gtM]
@@ -97,33 +104,45 @@ def filter_results(coco_evaluator, score_thresh):
                 if m == 0:
                     gtM_fr.append(0.0)
                 else:
-                    gtM_fr.append(0.0 if iclr[m-1] else float(m))
+                    try:
+                        res = iclr[dtids_to_idx[m]]
+                    except IndexError:
+                        print('index error: m-1: {},img_dtscores: {} '.format( m-1, img['dtScores']) )
+                    gtM_fr.append(0.0 if iclr[dtids_to_idx[m]] else float(m))
+
             gtMatches_filt.append(np.asarray(gtM_fr,dtype=np.float64))
             gtMatches[i,] = np.asarray(gtM_fr,dtype=np.float64)
 
         aRngidx = p.areaRng.index(img['aRng'])
-        evalFilt[img['image_id']][p.areaRngLbl[aRngidx]] = {'dtMatches': dtMatches,'gtMatches': gtMatches}
+        evalFilt[category][img['image_id']][p.areaRngLbl[aRngidx]] = {'dtMatches': dtMatches,'gtMatches': gtMatches}
         #pdb.set_trace()
 
     #determine performance metrics on filtered results
-    TP = np.zeros(shape=(10,),dtype=int)
-    TP2= np.zeros(shape=(10,),dtype=int)
-    FP = np.zeros(shape=(10,),dtype=int)
-    FN = np.zeros(shape=(10,),dtype=int)
+    metrics = []
+    for category in evalFilt:
 
-    for img in evalFilt:
-        for rng in evalFilt[img]:
-            if rng == p.areaRngLbl[0]:  #all size objects
-                TP = TP + np.sum(evalFilt[img][rng]['dtMatches'] > 0.0, axis = 1 )
-                FP = FP + np.sum(np.absolute(evalFilt[img][rng]['dtMatches']) < 0.1, axis = 1 )
-                TP2= TP2+ np.sum(evalFilt[img][rng]['gtMatches'] > 0.0, axis = 1 )
-                FN = FN + np.sum(evalFilt[img][rng]['gtMatches'] < 0.1, axis = 1 )
-    #print("TP: {}, TP2: {}, FP: {} , FN: {}".format(TP, TP2, FP, FN))
+        TP = np.zeros(shape=(10,),dtype=int)
+        TP2= np.zeros(shape=(10,),dtype=int)
+        FP = np.zeros(shape=(10,),dtype=int)
+        FN = np.zeros(shape=(10,),dtype=int)
 
-    #computer precision and recall for IoU = 0.5
-    pr = TP[0]/(TP[0] + FP[0])
-    rc = TP[0]/(TP[0] + FN[0])
-    return {'TP': TP[0], 'FP': FP[0], 'FN': FN[0], 'PR': pr, 'RC': rc}
+        for img in evalFilt[category]:
+            for rng in evalFilt[category][img]:
+                data_elm = evalFilt[category][img][rng]
+                if rng == p.areaRngLbl[0]:  #all size objects
+                    TP = TP + np.sum(data_elm['dtMatches'] > 0.0, axis = 1 )
+                    FP = FP + np.sum(np.absolute(data_elm['dtMatches']) < 0.1, axis = 1 )
+                    TP2= TP2+ np.sum(data_elm['gtMatches'] > 0.0, axis = 1 )
+                    FN = FN + np.sum(data_elm['gtMatches'] < 0.1, axis = 1 )
+        #print("TP: {}, TP2: {}, FP: {} , FN: {}".format(TP, TP2, FP, FN))
+
+        #computer precision and recall for IoU = 0.5
+        pr = TP[0]/(TP[0] + FP[0])
+        rc = TP[0]/(TP[0] + FN[0])
+
+        metrics.append({'category': category, 'TP': TP[0], 'FP': FP[0], 'FN': FN[0], 'PR': pr, 'RC': rc})
+
+    return metrics
 
 @torch.no_grad()
 def evaluate(model, data_loader, logfile, device):
@@ -166,12 +185,15 @@ def evaluate(model, data_loader, logfile, device):
     coco_evaluator.summarize()
     #pdb.set_trace()
     #eval_trials(coco_evaluator)
-    score_thresholds = [0.5, 0.6, 0.7, 0.8, 0.9]
+    score_thresholds = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
     for thresh in score_thresholds:
         res_filt = filter_results(coco_evaluator, thresh)
-        print_str = "Thresh: {:4.3f}, TP: {}, FP: {} , FN: {}, PR: {:4.3f}, RC: {:4.3f}".format(thresh, res_filt['TP'],res_filt['FP'],res_filt['FN'],res_filt['PR'],res_filt['RC'])
-        print(print_str)
-        logfile.write(print_str + '\n')
+
+        for cat_data in res_filt:
+            print_str = "Thresh: {:4.3f}, category {}, TP: {}, FP: {} , FN: {}, PR: {:4.3f}, RC: {:4.3f}".format(thresh, cat_data['category'], \
+                                                cat_data['TP'], cat_data['FP'], cat_data['FN'], cat_data['PR'], cat_data['RC'])
+            print(print_str)
+            logfile.write(print_str + '\n')
 
     torch.set_num_threads(n_threads)
     return coco_evaluator

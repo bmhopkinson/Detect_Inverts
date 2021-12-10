@@ -33,6 +33,9 @@ def filter_imgs_by_objarea(anns, imgs,  min_area):
     keep = []
     for a in anns:
         boxes, labels = read_anns(a)
+        if boxes.size(dim=0) == 0:
+            continue
+
         area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
         exceed = area > min_area
         if sum(exceed) >= 1:
@@ -93,8 +96,13 @@ class OD_Dataset(object):
         boxes  = torch.as_tensor(boxes, dtype=torch.float32)
         labels = torch.as_tensor(labels, dtype=torch.int64)
         image_id = torch.tensor([idx])
-        area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
-        boxes, labels = filter_by_objarea(area, boxes, labels, self.min_area)
+
+        if boxes.size(dim=0) != 0:
+            area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
+            boxes, labels = filter_by_objarea(area, boxes, labels, self.min_area)
+        else:
+            area = torch.as_tensor(0, dtype=torch.float32)
+
         num_objs = len(labels)
         # suppose all instances are not crowd
         iscrowd = torch.zeros((num_objs,), dtype=torch.int64)

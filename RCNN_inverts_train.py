@@ -7,9 +7,11 @@ import utils
 from dataloaders.ODDataset_Train import OD_Dataset
 import dataloaders.transforms as T
 
-num_classes = 2
+num_classes = 3
 min_area = 1 #minimum object size in pixels^2
 num_epochs = 1
+batch_size_train = 4
+batch_size_val = 1
 model_save_path = "faster_rcnn_snails.pt"
 
 def get_transform(train):
@@ -34,19 +36,19 @@ def main():
     # setup datasets and dataloaders
     #train_datainfo = {'topfolders' : ['./Data/Snails_2_BH', './Data/Snails_3_2015'], 'datafolder' :'OD_data_train', 'imgfolder' : 'OD_imgs_train' }
     #val_datainfo   = {'topfolders' : ['./Data/Snails_2_BH', './Data/Snails_3_2015'], 'datafolder' :'OD_data_val',   'imgfolder' : 'OD_imgs_val'   }
-    train_datainfo = {'topfolders' : ['./Data/Snails_3_2015'], 'datafolder' :'OD_data_train', 'imgfolder' : 'OD_imgs_train' }
-    val_datainfo   = {'topfolders' : ['./Data/Snails_3_2015'], 'datafolder' :'OD_data_val',   'imgfolder' : 'OD_imgs_val'   }
+    train_datainfo = {'topfolders' : ['./Data/Snails_Sapelo_2021'], 'datafolder' :'OD_data', 'imgfolder' : 'OD_imgs' }
+    val_datainfo   = {'topfolders' : ['./Data/Snails_Sapelo_2021'], 'datafolder' :'OD_data', 'imgfolder' : 'OD_imgs' }
 
     dataset_train = OD_Dataset(train_datainfo,get_transform(train=True) , min_area )
     dataset_val   = OD_Dataset(val_datainfo  ,get_transform(train=False), min_area )
     #print("length of val dataset {}".format(len(dataset_val)))
 
     data_loader_train = torch.utils.data.DataLoader(
-        dataset_train, batch_size=4, shuffle=True, num_workers=4,
+        dataset_train, batch_size=batch_size_train, shuffle=True, num_workers=4,
         collate_fn=utils.collate_fn)
 
     data_loader_val = torch.utils.data.DataLoader(
-        dataset_val, batch_size=1, shuffle=False, num_workers=4,
+        dataset_val, batch_size=batch_size_val, shuffle=False, num_workers=4,
         collate_fn=utils.collate_fn)
 
     # setup model
