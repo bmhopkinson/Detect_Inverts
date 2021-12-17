@@ -6,6 +6,7 @@ from PIL import Image
 import pdb
 import re
 
+
 re_fbase = re.compile('^(.*)\.[jJ][pP][eE]?[gG]')
 #re_fbase = re.compile('^(.*).jpg')
 
@@ -13,11 +14,13 @@ def read_anns(ann_path):
     #load annotations
     boxes = []
     labels = []
-    with open(ann_path) as f:
-        reader = csv.reader(f, delimiter='\t')
-        for row in reader:
-            boxes.append([float(row[0]), float(row[1]), float(row[2]), float(row[3])]) #xmin, ymin, xmax, ymax
-            labels.append(int(row[4]) +1) #increment b/c zero is the background class
+    if os.path.isfile(ann_path):
+        with open(ann_path) as f:
+            reader = csv.reader(f, delimiter='\t')
+            for row in reader:
+                boxes.append([float(row[0]), float(row[1]), float(row[2]), float(row[3])]) #xmin, ymin, xmax, ymax
+                labels.append(int(row[4]) +1) #increment b/c zero is the background class
+
     boxes  = torch.as_tensor(boxes, dtype=torch.float32)
     labels = torch.as_tensor(labels, dtype=torch.int64)
 
@@ -50,7 +53,7 @@ def filter_imgs_by_objarea(anns, imgs,  min_area):
 
 
 class OD_Dataset(object):
-    def __init__(self,datainfo,transforms, min_area):
+    def __init__(self,datainfo,transforms, min_area=0, filter_by_area=False):
         self.folders = datainfo['topfolders']
         self.dataf   = datainfo['datafolder']
         self.imgf    = datainfo['imgfolder']
@@ -63,6 +66,7 @@ class OD_Dataset(object):
         for fld in self.folders:
             img_fld = os.path.join(fld,self.imgf)
             imgs = list(sorted(os.listdir(img_fld)))
+            print('num images in train folder: {}'.format(len(imgs)))
             anns = []
             imgs_mod = []
             for img in imgs:
@@ -70,7 +74,10 @@ class OD_Dataset(object):
                 anns.append(os.path.join(fld, self.dataf, m.group(1) + '_objs.txt'))
                 imgs_mod.append(os.path.join(fld, self.imgf, img))
                 #imgs = map(lambda: p, f: p + f, fld * len(imgs), imgs)
-            imgs_mod, anns = filter_imgs_by_objarea(anns,imgs_mod,self.min_area)
+
+            if filter_by_area:
+                imgs_mod, anns = filter_imgs_by_objarea(anns, imgs_mod, self.min_area)
+            print('num images in train folder after filtering: {}'.format(len(imgs_mod)))
             self.imgs.extend(imgs_mod)
             self.anns.extend(anns)
         #pdb.set_trace()
@@ -86,12 +93,17 @@ class OD_Dataset(object):
         #boxes, labels = read_anns(ann_path)
         boxes = []
         labels = []
-        with open(ann_path) as f:
-            reader = csv.reader(f, delimiter='\t')
-            for row in reader:
-                boxes.append([float(row[0]), float(row[1]), float(row[2]), float(row[3])]) #xmin, ymin, xmax, ymax
-                labels.append(int(row[4]) +1) #increment b/c zero is the background class
 
+        if os.path.isfile(ann_path):
+            with open(ann_path) as f:
+                reader = csv.reader(f, delimiter='\t')
+                for row in reader:
+                    boxes.append([float(row[0]), float(row[1]), float(row[2]), float(row[3])]) #xmin, ymin, xmax, ymax
+                    labels.append(int(row[4]) +1) #increment b/c zero is the background class
+
+        else: #no object annotations - just background
+            boxes = torch.zeros((0,4), dtype=torch.float32)
+            labels = torch.zeros((0,), dtype=torch.float32)
 
         boxes  = torch.as_tensor(boxes, dtype=torch.float32)
         labels = torch.as_tensor(labels, dtype=torch.int64)

@@ -1,18 +1,23 @@
-import numpy as np
-import torch
-import torchvision
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-from engine import train_one_epoch, evaluate
+import engine
 import utils
 from dataloaders.ODDataset_Train import OD_Dataset
 import dataloaders.transforms as T
 
+import numpy as np
+import torch
+from torch.utils.tensorboard import SummaryWriter
+import torchvision
+from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+from engine import evaluate
+
+
 num_classes = 3
 min_area = 1 #minimum object size in pixels^2
-num_epochs = 1
+num_epochs = 10
 batch_size_train = 4
 batch_size_val = 1
 model_save_path = "faster_rcnn_snails.pt"
+tensorboard_path = "runs/FRCNN_snails_1"
 
 def get_transform(train):
     transforms = []
@@ -33,14 +38,16 @@ def setup_model(num_classes):
 def main():
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
+    writer = SummaryWriter(tensorboard_path)
+
     # setup datasets and dataloaders
     #train_datainfo = {'topfolders' : ['./Data/Snails_2_BH', './Data/Snails_3_2015'], 'datafolder' :'OD_data_train', 'imgfolder' : 'OD_imgs_train' }
     #val_datainfo   = {'topfolders' : ['./Data/Snails_2_BH', './Data/Snails_3_2015'], 'datafolder' :'OD_data_val',   'imgfolder' : 'OD_imgs_val'   }
-    train_datainfo = {'topfolders' : ['./Data/Snails_Sapelo_2021'], 'datafolder' :'OD_data', 'imgfolder' : 'OD_imgs' }
-    val_datainfo   = {'topfolders' : ['./Data/Snails_Sapelo_2021'], 'datafolder' :'OD_data', 'imgfolder' : 'OD_imgs' }
+    train_datainfo = {'topfolders' : ['./Data/Snails_Sapelo_2021'], 'datafolder' :'OD_data_train', 'imgfolder' : 'OD_imgs_train' }
+    val_datainfo   = {'topfolders' : ['./Data/Snails_Sapelo_2021'], 'datafolder' :'OD_data_val', 'imgfolder' : 'OD_imgs_val' }
 
-    dataset_train = OD_Dataset(train_datainfo,get_transform(train=True) , min_area )
-    dataset_val   = OD_Dataset(val_datainfo  ,get_transform(train=False), min_area )
+    dataset_train = OD_Dataset(train_datainfo, get_transform(train=True) , min_area )
+    dataset_val   = OD_Dataset(val_datainfo  , get_transform(train=False), min_area )
     #print("length of val dataset {}".format(len(dataset_val)))
 
     data_loader_train = torch.utils.data.DataLoader(
@@ -69,13 +76,15 @@ def main():
     # let's train it for X epochs
     logfile = open("logfile_training_size_>1_SGD.txt",'w')
 
+    trainer = engine.Trainer(model, optimizer, device, logfile, writer, print_freq=20)
+
     for epoch in range(num_epochs):
         # train for one epoch, printing every 10 iterations
-        train_one_epoch(model, optimizer, data_loader_train, device, epoch, logfile, print_freq=20)
+        trainer.train_one_epoch(data_loader_train)
         # update the learning rate
         lr_scheduler.step()
         # evaluate on the test dataset
-        evaluate(model, data_loader_val, logfile, device=device)
+        evaluate(model, data_loader_val, logfile, writer, epoch, device=device)
 
     torch.save(model.state_dict(), model_save_path)
     print("That's it!")

@@ -13,50 +13,71 @@ from coco_utils import get_coco_api_from_dataset
 from coco_eval import CocoEvaluator
 import utils
 
+class Trainer:
+    def __init__(self, model, optimizer, device, logfile, writer, print_freq):
+        self.model = model
+        self.optimizer = optimizer
+        self.device = device
+        self.logfile = logfile
+        self.writer = writer
+        self.print_freq = print_freq
+        self.epoch = 0
 
-def train_one_epoch(model, optimizer, data_loader, device, epoch, logfile, print_freq):
-    model.train()
-    metric_logger = utils.MetricLogger(logfile, delimiter="  ")
-    metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
-    header = 'Epoch: [{}]'.format(epoch)
+    def train_one_epoch(self, data_loader ):
+        self.model.train()
+        device = self.device
 
-    lr_scheduler = None
-    if epoch == 0:
-        warmup_factor = 1. / 1000
-        warmup_iters = min(1000, len(data_loader) - 1)
+        metric_logger = utils.MetricLogger(self.logfile, delimiter="  ")
+        metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
+        header = 'Epoch: [{}]'.format(self.epoch)
 
-        lr_scheduler = utils.warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor)
+        lr_scheduler = None
+        if self.epoch == 0:
+            warmup_factor = 1. / 1000
+            warmup_iters = min(1000, len(data_loader) - 1)
 
-    for images, targets in metric_logger.log_every(data_loader, print_freq, header):
-        images = list(image.to(device) for image in images)
+            lr_scheduler = utils.warmup_lr_scheduler(self.optimizer, warmup_iters, warmup_factor)
 
-    #    print(targets)
-        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+        running_loss = 0.0
+        for i, (images, targets) in enumerate(metric_logger.log_every(data_loader, self.print_freq, header)):
+            images = list(image.to(device) for image in images)
 
-        loss_dict = model(images, targets)
+        #    print(targets)
+            targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
-        losses = sum(loss for loss in loss_dict.values())
+            loss_dict = self.model(images, targets)
 
-        # reduce losses over all GPUs for logging purposes
-        loss_dict_reduced = utils.reduce_dict(loss_dict)
-        losses_reduced = sum(loss for loss in loss_dict_reduced.values())
+            losses = sum(loss for loss in loss_dict.values())
+            running_loss = running_loss + losses
 
-        loss_value = losses_reduced.item()
+            # reduce losses over all GPUs for logging purposes
+            loss_dict_reduced = utils.reduce_dict(loss_dict)
+            losses_reduced = sum(loss for loss in loss_dict_reduced.values())
 
-        if not math.isfinite(loss_value):
-            print("Loss is {}, stopping training".format(loss_value))
-            print(loss_dict_reduced)
-            sys.exit(1)
+            loss_value = losses_reduced.item()
 
-        optimizer.zero_grad()
-        losses.backward()
-        optimizer.step()
 
-        if lr_scheduler is not None:
-            lr_scheduler.step()
+            if not math.isfinite(loss_value):
+                print("Loss is {}, stopping training".format(loss_value))
+                print(loss_dict_reduced)
+                sys.exit(1)
 
-        metric_logger.update(loss=losses_reduced, **loss_dict_reduced)
-        metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+            self.optimizer.zero_grad()
+            losses.backward()
+            self.optimizer.step()
+
+            if lr_scheduler is not None:
+                lr_scheduler.step()
+
+            metric_logger.update(loss=losses_reduced, **loss_dict_reduced)
+            metric_logger.update(lr=self.optimizer.param_groups[0]["lr"])
+
+            if i % self.print_freq == 0:
+                 self.writer.add_scalar('training_loss_iter', loss_value, self.epoch*len(data_loader) + i)
+
+        self.writer.add_scalars('loss_epoch', {'train': running_loss / i}, self.epoch)
+        self.epoch = self.epoch + 1
+
 
 
 def _get_iou_types(model):
@@ -145,7 +166,7 @@ def filter_results(coco_evaluator, score_thresh):
     return metrics
 
 @torch.no_grad()
-def evaluate(model, data_loader, logfile, device):
+def evaluate(model, data_loader, logfile, writer, epoch, device):
     n_threads = torch.get_num_threads()
     # FIXME remove this and make paste_masks_in_image run on the GPU
     torch.set_num_threads(1)
@@ -194,6 +215,8 @@ def evaluate(model, data_loader, logfile, device):
                                                 cat_data['TP'], cat_data['FP'], cat_data['FN'], cat_data['PR'], cat_data['RC'])
             print(print_str)
             logfile.write(print_str + '\n')
+            writer.add_scalars('{}_precision'.format(cat_data['category']), {str(thresh): cat_data['PR']}, epoch)
+            writer.add_scalars('{}_recall'.format(cat_data['category']), {str(thresh): cat_data['RC']}, epoch)
 
     torch.set_num_threads(n_threads)
     return coco_evaluator
