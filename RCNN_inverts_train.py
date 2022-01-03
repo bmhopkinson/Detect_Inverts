@@ -84,7 +84,7 @@ def main():
         # update the learning rate
         lr_scheduler.step()
         # evaluate on the test dataset
-        evaluate(model, data_loader_val, logfile, writer, epoch, device=device)
+        evaluate(model, data_loader_val, logfile, device, writer, epoch)
 
     torch.save(model.state_dict(), model_save_path)
     print("That's it!")

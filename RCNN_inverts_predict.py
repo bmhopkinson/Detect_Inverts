@@ -68,11 +68,11 @@ def make_predictions(model, data_loader, device):
 
                 m = params['re_fbase'].search(name)
                 fn_out =  m.group(1) + '_preds.txt'
-                helpers.pred.write_pred(fn_out,pdata_filt,params)
+                helpers.pred.write_pred(fn_out, pdata_filt, params)
                 if OUTPUT_TMP_IMAGES:
                     img = img.to('cpu')
                     img = torchvision.transforms.ToPILImage()(img).convert("RGBA")
-                    helpers.image.write_image(name, pdata_filt,img, params)
+                    helpers.image.write_image(name, pdata_filt, img, params)
 
 def main():
 
@@ -102,14 +102,14 @@ def main():
         # setup datasets and dataloaders
         dataset = OD_Dataset_Predict(tmp_folder,get_transform(train=False))
 
-        data_loader = torch.utils.data.DataLoader(dataset, batch_size = 8,
-                shuffle=False, num_workers = 4, collate_fn= utils.collate_fn)
+        data_loader = torch.utils.data.DataLoader(dataset, batch_size=8,
+                shuffle=False, num_workers=4, collate_fn= utils.collate_fn)
 
         make_predictions(model, data_loader, device)
 
         helpers.pred.assemble_predictions(section_data, params)
 
-        stop = time.time();
+        stop = time.time()
         delta_t = stop - start
         print('finished in {:4.2f} s'.format(delta_t))
 

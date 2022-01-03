@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torchvision
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-from engine import train_one_epoch, evaluate
+from engine import evaluate
 import utils
 from dataloaders.ODDataset_Train import OD_Dataset
 import dataloaders.transforms as T
@@ -35,7 +35,7 @@ def main():
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     #set up model                    imgPIL.save( m.group(1) + "_preds.jpg","JPEG")
-    model_state_file = 'faster_rcnn_snails.pt'
+    model_state_file = './model_archive/faster_rcnn_snails_2014_2015.pt'
     num_classes = 2
     model = setup_model(num_classes)
     model.load_state_dict(torch.load(model_state_file))
@@ -63,26 +63,26 @@ def main():
                 labels = pred[0]['labels'].to('cpu').numpy()
                 scores = pred[0]['scores'].to('cpu').numpy()
                 imgPIL = torchvision.transforms.ToPILImage()(img).convert("RGBA")
-                overlay_pred = Image.new('RGBA',imgPIL.size, (0,0,0,0))
+                overlay_pred = Image.new('RGBA', imgPIL.size, (0, 0, 0, 0))
                 draw = ImageDraw.Draw(overlay_pred)
                 n_preds = len(scores)
                 for i in range(n_preds):
                     if scores[i] > score_threshold:
-                        draw.rectangle(boxes[i],outline = (0,0,255,127), width=3)
+                        draw.rectangle(boxes[i], outline=(0, 0, 255, 127), width=3)
                 imgPIL = Image.alpha_composite(imgPIL, overlay_pred)
 
-                overlay_true = Image.new('RGBA',imgPIL.size, (0,0,0,0))
+                overlay_true = Image.new('RGBA', imgPIL.size, (0, 0, 0, 0))
                 draw = ImageDraw.Draw(overlay_true)
                 true_boxes = target["boxes"].numpy()
                 for box in true_boxes:
-                    draw.rectangle(box, outline = (255,0,0,127), width=3)
+                    draw.rectangle(box, outline=(255, 0, 0, 127), width=3)
                 imgPIL = Image.alpha_composite(imgPIL, overlay_true).convert("RGB")
-                img_path = os.path.join("./output",dataset.imgs[target["image_id"]] + "_preds.jpg" )
+                img_path = os.path.join("./output", dataset.imgs[target["image_id"]] + "_preds.jpg")
                 dir = os.path.dirname(img_path)
                 if not os.path.isdir(dir):
                     os.makedirs(dir)
                 #imgPIL.save("./output/"+ dataset.imgs[target["image_id"]] + "_preds.jpg","JPEG")
-                imgPIL.save(img_path,"JPEG")
+                imgPIL.save(img_path, "JPEG")
 
 if __name__ == '__main__':
     main()

@@ -95,7 +95,6 @@ def rec_dd(): #recursive default dict
     return defaultdict(rec_dd)
 
 def filter_results(coco_evaluator, score_thresh):
-    #currently only works for a single object class
     coco_eval = coco_evaluator.coco_eval["bbox"]
     #clear matches below threshold, then evaluate precision, recall
 
@@ -166,7 +165,7 @@ def filter_results(coco_evaluator, score_thresh):
     return metrics
 
 @torch.no_grad()
-def evaluate(model, data_loader, logfile, writer, epoch, device):
+def evaluate(model, data_loader, logfile, device, writer=None, epoch=0):
     n_threads = torch.get_num_threads()
     # FIXME remove this and make paste_masks_in_image run on the GPU
     torch.set_num_threads(1)
@@ -204,8 +203,7 @@ def evaluate(model, data_loader, logfile, writer, epoch, device):
     # accumulate predictions from all images
     coco_evaluator.accumulate()
     coco_evaluator.summarize()
-    #pdb.set_trace()
-    #eval_trials(coco_evaluator)
+
     score_thresholds = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
     for thresh in score_thresholds:
         res_filt = filter_results(coco_evaluator, thresh)
@@ -215,8 +213,10 @@ def evaluate(model, data_loader, logfile, writer, epoch, device):
                                                 cat_data['TP'], cat_data['FP'], cat_data['FN'], cat_data['PR'], cat_data['RC'])
             print(print_str)
             logfile.write(print_str + '\n')
-            writer.add_scalars('{}_precision'.format(cat_data['category']), {str(thresh): cat_data['PR']}, epoch)
-            writer.add_scalars('{}_recall'.format(cat_data['category']), {str(thresh): cat_data['RC']}, epoch)
+
+            if writer:
+                writer.add_scalars('{}_precision'.format(cat_data['category']), {str(thresh): cat_data['PR']}, epoch)
+                writer.add_scalars('{}_recall'.format(cat_data['category']), {str(thresh): cat_data['RC']}, epoch)
 
     torch.set_num_threads(n_threads)
     return coco_evaluator
