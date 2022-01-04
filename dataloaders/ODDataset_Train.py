@@ -53,7 +53,7 @@ def filter_imgs_by_objarea(anns, imgs,  min_area):
 
 
 class OD_Dataset(object):
-    def __init__(self,datainfo,transforms, min_area=0, filter_by_area=False):
+    def __init__(self, datainfo, transforms, min_area=0, filter_by_area=False):
         self.folders = datainfo['topfolders']
         self.dataf   = datainfo['datafolder']
         self.imgf    = datainfo['imgfolder']

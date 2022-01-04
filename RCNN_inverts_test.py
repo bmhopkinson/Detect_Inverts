@@ -12,8 +12,9 @@ from PIL import Image, ImageDraw, ImageFont
 
 num_classes = 2
 score_threshold = 0.70
-min_area = 1 #minimum object size in pixels^2
+min_area = 500 #minimum object size in pixels^2
 logfile_name = "logfile_test.txt"
+model_state_file = './model_archive/faster_rcnn_snails_2014_2015.pt'
 OUTPUT_IMAGES = True
 
 def get_transform(train):
@@ -35,7 +36,6 @@ def main():
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     #set up model                    imgPIL.save( m.group(1) + "_preds.jpg","JPEG")
-    model_state_file = './model_archive/faster_rcnn_snails_2014_2015.pt'
     num_classes = 2
     model = setup_model(num_classes)
     model.load_state_dict(torch.load(model_state_file))
@@ -43,9 +43,11 @@ def main():
     model.to(device)
 
     # setup datasets and dataloaders
-    test_datainfo = {'topfolders' : ['./Data/Snails_2_BH', './Data/Snails_3_2015'], 'datafolder' :'OD_data_test', 'imgfolder' : 'OD_imgs_test' }
+    #test_datainfo = {'topfolders' : ['./Data/Snails_2_BH', './Data/Snails_3_2015'], 'datafolder' :'OD_data_test', 'imgfolder' : 'OD_imgs_test' }
+    test_datainfo = {'topfolders': ['./Data/Snails_Sapelo_202106'], 'datafolder': 'OD_data_test', 'imgfolder': 'OD_imgs_test'}
+
     #folder = ['./Data/Snails_2_BH/OD_imgs_test','./Data/Snails_2_BH/OD_data_test']
-    dataset = OD_Dataset(test_datainfo,get_transform(train=False), min_area)
+    dataset = OD_Dataset(test_datainfo, get_transform(train=False), min_area=1)  #want to include all true annotations. filter later so correct model predctions of small objects aren't considered false positives
     data_loader = torch.utils.data.DataLoader(dataset, batch_size = 1,
             shuffle=False, num_workers = 4, collate_fn= utils.collate_fn)
 

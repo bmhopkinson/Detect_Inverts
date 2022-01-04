@@ -94,8 +94,72 @@ def _get_iou_types(model):
 def rec_dd(): #recursive default dict
     return defaultdict(rec_dd)
 
-def filter_results(coco_evaluator, score_thresh):
+def filter_dtMatches_by_score(score_thresh, scores, dtMatches):
+    dtMatches = np.copy(dtMatches)
+    iclr = [s < score_thresh for s in scores]
+    iclr_np = np.asarray(iclr, dtype=bool)
+    dtMatches[:, iclr_np] = -1.0  # indicates to ignore
+    return dtMatches, iclr
+
+def filter_gtMatches_by_score(iclr, dtIds, _gtMatches):
+    _gtMatches = np.copy(_gtMatches)
+    dtids_to_idx = {int(dtid): idx for idx, dtid in enumerate(dtIds)}  # map from detected id to index of iclr (ids are not always == to idx)
+
+    gtMatches = np.zeros(_gtMatches.shape)
+    for i, gtM in enumerate(_gtMatches):
+        # gtM_fr = [0.0 if iclr[int(m)] else m for m in gtM]
+        gtM_fr = []
+        for dt_idx in gtM:
+            dt_idx = int(dt_idx)
+            if dt_idx == 0:  # no match
+                gtM_fr.append(0.0)
+            elif dt_idx == -1: # ignore
+                gtM_fr.append(-1.0)
+            else:
+                gtM_fr.append(0.0 if iclr[dtids_to_idx[dt_idx]] else float(dt_idx))
+
+        gtMatches[i,] = np.asarray(gtM_fr, dtype=np.float64)
+
+        return gtMatches
+
+
+def filter_anns_by_area(area_thresh, img, ann_data):
+    #identify anns (ground truth) objects that fall below area_thresh
+    iclr = []
+    for col, gtid in enumerate(img['gtIds']):
+        if ann_data[gtid]['area']  < area_thresh:
+            iclr.append({'col': col, 'id': gtid})
+
+    dtMatches_to_remove = []
+    gtMatches = np.copy(img['gtMatches'])
+    dtMatches = np.copy(img['dtMatches'])
+    dtids_to_idx = {dtid: idx for idx, dtid in enumerate(img['dtIds'])}  # map from detected id to index of iclr (ids are not always == to idx)
+    dtids_to_idx[0] = -1    # zero key indicates there was no match to a detection, mark with -1
+
+    #record dtMatches corresponding to gtMatches that fall below area threshold
+    dtMatches_to_remove_by_gtMatch = []
+    for elm in iclr:
+        dtids = list(gtMatches[:, elm['col']].astype(int))
+        dtidxs = [dtids_to_idx[i] for i in dtids]
+        dtMatches_to_remove_by_gtMatch.append(dtidxs)
+
+    #remove corresponding dtMatches
+    for dts in dtMatches_to_remove_by_gtMatch:
+        for i, j in enumerate(dts):
+            if j >= 0:
+                dtMatches[i, j] = -1.0
+
+    #remove gtMatches columns corresponding to anns that fell below area_thresh
+    ignore_cols = [elm['col'] for elm in iclr]
+    gtMatches[:, ignore_cols] = -1.0
+
+    return dtMatches, gtMatches
+
+
+
+def filter_results(coco_evaluator, score_thresh, area_thresh):
     coco_eval = coco_evaluator.coco_eval["bbox"]
+    ann_data = coco_eval.cocoGt.anns #dictionary, key: gt Annotation id, value dict of data including 'bbox' and 'area'
     #clear matches below threshold, then evaluate precision, recall
 
     evalFilt = rec_dd()
@@ -105,33 +169,12 @@ def filter_results(coco_evaluator, score_thresh):
         if img is None:  #no objects were detected
             continue
         category = img['category_id']
-        dtMatches = np.copy(img['dtMatches'])
-        nT = len(dtMatches)
-        iclr = [s < score_thresh for s in img['dtScores']]
-        iclr_np = np.asarray(iclr, dtype=bool)
-        dtMatches[:, iclr_np] = -1.0  #indicates to ignore
-        dtids_to_idx = {int(dtid): idx for idx, dtid in enumerate(img['dtIds'])}  #map from detected id to index of iclr (ids are not always == to idx)
+        dtMatches, gtMatches = filter_anns_by_area(area_thresh, img, ann_data)
+        # dtMatches, iclr = filter_dtMatches_by_score(score_thresh, img['dtScores'], dtMatches)
+        # gtMatches = filter_gtMatches_by_score(iclr, img['dtIds'], gtMatches)
 
-
-        gtMatches = np.zeros(img['gtMatches'].shape)
-        gtMatches_filt = []
-        #pdb.set_trace()
-        for i, gtM in enumerate(np.copy(img['gtMatches'])):
-            #gtM_fr = [0.0 if iclr[int(m)] else m for m in gtM]
-            gtM_fr = []
-            for m in gtM:
-                m = int(m)
-                if m == 0:
-                    gtM_fr.append(0.0)
-                else:
-                    try:
-                        res = iclr[dtids_to_idx[m]]
-                    except IndexError:
-                        print('index error: m-1: {},img_dtscores: {} '.format( m-1, img['dtScores']) )
-                    gtM_fr.append(0.0 if iclr[dtids_to_idx[m]] else float(m))
-
-            gtMatches_filt.append(np.asarray(gtM_fr,dtype=np.float64))
-            gtMatches[i,] = np.asarray(gtM_fr,dtype=np.float64)
+        dtMatches, iclr = filter_dtMatches_by_score(score_thresh, img['dtScores'], dtMatches)
+        gtMatches = filter_gtMatches_by_score(iclr, img['dtIds'], gtMatches)
 
         aRngidx = p.areaRng.index(img['aRng'])
         evalFilt[category][img['image_id']][p.areaRngLbl[aRngidx]] = {'dtMatches': dtMatches,'gtMatches': gtMatches}
@@ -150,10 +193,10 @@ def filter_results(coco_evaluator, score_thresh):
             for rng in evalFilt[category][img]:
                 data_elm = evalFilt[category][img][rng]
                 if rng == p.areaRngLbl[0]:  #all size objects
-                    TP = TP + np.sum(data_elm['dtMatches'] > 0.0, axis = 1 )
-                    FP = FP + np.sum(np.absolute(data_elm['dtMatches']) < 0.1, axis = 1 )
-                    TP2= TP2+ np.sum(data_elm['gtMatches'] > 0.0, axis = 1 )
-                    FN = FN + np.sum(data_elm['gtMatches'] < 0.1, axis = 1 )
+                    TP = TP + np.sum(data_elm['dtMatches'] > 0.0, axis=1)
+                    FP = FP + np.sum(np.absolute(data_elm['dtMatches']) < 0.1, axis=1)  # 0.0 indicates no match was made to a ground truth (-1.0 indicates ignore, other positive value is idx of gt match)
+                    TP2= TP2+ np.sum(data_elm['gtMatches'] > 0.0, axis=1)
+                    FN = FN + np.sum(np.absolute(data_elm['gtMatches']) < 0.1, axis=1)
         #print("TP: {}, TP2: {}, FP: {} , FN: {}".format(TP, TP2, FP, FN))
 
         #computer precision and recall for IoU = 0.5
@@ -205,8 +248,9 @@ def evaluate(model, data_loader, logfile, device, writer=None, epoch=0):
     coco_evaluator.summarize()
 
     score_thresholds = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+    area_thresh = 500 #currently just allow a single area threshold in pixels^2
     for thresh in score_thresholds:
-        res_filt = filter_results(coco_evaluator, thresh)
+        res_filt = filter_results(coco_evaluator, thresh, area_thresh)
 
         for cat_data in res_filt:
             print_str = "Thresh: {:4.3f}, category {}, TP: {}, FP: {} , FN: {}, PR: {:4.3f}, RC: {:4.3f}".format(thresh, cat_data['category'], \

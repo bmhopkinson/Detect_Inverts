@@ -11,12 +11,12 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from engine import evaluate
 
 
-num_classes = 3
+num_classes = 2
 min_area = 1 #minimum object size in pixels^2
 num_epochs = 10
 batch_size_train = 4
 batch_size_val = 1
-model_save_path = "faster_rcnn_snails.pt"
+model_save_path = "faster_rcnn_snails_202106.pt"
 tensorboard_path = "runs/FRCNN_snails_1"
 
 def get_transform(train):
@@ -43,8 +43,8 @@ def main():
     # setup datasets and dataloaders
     #train_datainfo = {'topfolders' : ['./Data/Snails_2_BH', './Data/Snails_3_2015'], 'datafolder' :'OD_data_train', 'imgfolder' : 'OD_imgs_train' }
     #val_datainfo   = {'topfolders' : ['./Data/Snails_2_BH', './Data/Snails_3_2015'], 'datafolder' :'OD_data_val',   'imgfolder' : 'OD_imgs_val'   }
-    train_datainfo = {'topfolders' : ['./Data/Snails_Sapelo_2021'], 'datafolder' :'OD_data_train', 'imgfolder' : 'OD_imgs_train' }
-    val_datainfo   = {'topfolders' : ['./Data/Snails_Sapelo_2021'], 'datafolder' :'OD_data_val', 'imgfolder' : 'OD_imgs_val' }
+    train_datainfo = {'topfolders' : ['./Data/Snails_Sapelo_202106'], 'datafolder' :'OD_data_train', 'imgfolder' : 'OD_imgs_train' }
+    val_datainfo   = {'topfolders' : ['./Data/Snails_Sapelo_202106'], 'datafolder' :'OD_data_val', 'imgfolder' : 'OD_imgs_val' }
 
     dataset_train = OD_Dataset(train_datainfo, get_transform(train=True) , min_area )
     dataset_val   = OD_Dataset(val_datainfo  , get_transform(train=False), min_area )
