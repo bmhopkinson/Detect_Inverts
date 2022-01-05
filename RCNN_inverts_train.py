@@ -15,7 +15,7 @@ num_classes = 2
 min_area = 1 #minimum object size in pixels^2
 num_epochs = 10
 batch_size_train = 4
-batch_size_val = 1
+batch_size_val = 1  # only works w/ batchsize 1 right now
 model_save_path = "faster_rcnn_snails_202106.pt"
 tensorboard_path = "runs/FRCNN_snails_1"
 

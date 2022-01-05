@@ -26,11 +26,11 @@ class CocoEvaluator(object):
         self.coco_eval = {}
         for iou_type in iou_types:
             self.coco_eval[iou_type] = COCOeval(coco_gt, iouType=iou_type)
-
+            self.coco_eval[iou_type].all_cocoDts = {}
         self.img_ids = []
         self.eval_imgs = {k: [] for k in iou_types}
 
-    def update(self, predictions):
+    def update(self, predictions):   #only works with batch size 1 right now so subsequent filtering on data can be done more easily
         img_ids = list(np.unique(list(predictions.keys())))
         self.img_ids.extend(img_ids)
 
@@ -40,6 +40,10 @@ class CocoEvaluator(object):
             coco_eval = self.coco_eval[iou_type]
 
             coco_eval.cocoDt = coco_dt
+            if results:  #this next code block only works for batch size 1
+                for img in predictions:  #should only be one image
+                    coco_eval.all_cocoDts[img] = coco_dt
+          #
             coco_eval.params.imgIds = list(img_ids)
             img_ids, eval_imgs = evaluate(coco_eval)
 

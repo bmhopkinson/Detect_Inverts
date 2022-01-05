@@ -155,7 +155,35 @@ def filter_anns_by_area(area_thresh, img, ann_data):
 
     return dtMatches, gtMatches
 
+def filter_detections_by_area(area_thresh, img, dtMatches, gtMatches, dt_data):
+    #this function and filter_anns_by_area could be unified, just the converse of each other
+    #dtids_to_idx = {dtid: idx for idx, dtid in enumerate(img['dtIds'])}
+    gtids_to_idx = {gtid: idx for idx, gtid in enumerate(img['gtIds'])}
+    gtids_to_idx[0] = -1  # zero key indicates there was no match to a detection, mark with -1
+    gtids_to_idx[-1] = -2  # -1 key indicates ignore, mark with -2
 
+    iclr = []
+    for col, dtid in enumerate(img['dtIds']):
+        if dt_data[dtid]['area'] < area_thresh:
+            iclr.append({'col': col, 'id': dtid})
+
+    # record gtMatches corresponding to dtMatches that fall below area threshold
+    gtMatches_to_remove_by_dtMatch = []
+    for elm in iclr:
+        gtids = list(dtMatches[:, elm['col']].astype(int))
+        gtidxs = [gtids_to_idx[i] for i in gtids]
+        gtMatches_to_remove_by_dtMatch.append(gtidxs)
+
+    #remove corresponding gtMatches
+    for gts in gtMatches_to_remove_by_dtMatch:
+        for i, j in enumerate(gts):
+            if j >= 0:
+                gtMatches[i, j] = -1.0
+
+    ignore_cols = [elm['col'] for elm in iclr]
+    dtMatches[:, ignore_cols] = -1.0
+
+    return dtMatches, gtMatches
 
 def filter_results(coco_evaluator, score_thresh, area_thresh):
     coco_eval = coco_evaluator.coco_eval["bbox"]
@@ -170,6 +198,9 @@ def filter_results(coco_evaluator, score_thresh, area_thresh):
             continue
         category = img['category_id']
         dtMatches, gtMatches = filter_anns_by_area(area_thresh, img, ann_data)
+
+        dt_data = coco_eval.all_cocoDts[img['image_id']].anns
+        dtMatches, gtMatches = filter_detections_by_area(area_thresh, img, dtMatches, gtMatches, dt_data)
         # dtMatches, iclr = filter_dtMatches_by_score(score_thresh, img['dtScores'], dtMatches)
         # gtMatches = filter_gtMatches_by_score(iclr, img['dtIds'], gtMatches)
 
@@ -208,7 +239,7 @@ def filter_results(coco_evaluator, score_thresh, area_thresh):
     return metrics
 
 @torch.no_grad()
-def evaluate(model, data_loader, logfile, device, writer=None, epoch=0):
+def evaluate(model, data_loader, logfile, device, writer=None, epoch=0, area_thresh=1):
     n_threads = torch.get_num_threads()
     # FIXME remove this and make paste_masks_in_image run on the GPU
     torch.set_num_threads(1)
@@ -248,7 +279,6 @@ def evaluate(model, data_loader, logfile, device, writer=None, epoch=0):
     coco_evaluator.summarize()
 
     score_thresholds = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
-    area_thresh = 500 #currently just allow a single area threshold in pixels^2
     for thresh in score_thresholds:
         res_filt = filter_results(coco_evaluator, thresh, area_thresh)
 
