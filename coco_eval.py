@@ -40,9 +40,9 @@ class CocoEvaluator(object):
             coco_eval = self.coco_eval[iou_type]
 
             coco_eval.cocoDt = coco_dt
-            if results:  #this next code block only works for batch size 1
-                for img in predictions:  #should only be one image
-                    coco_eval.all_cocoDts[img] = coco_dt
+            #if results:  #this next code block only works for batch size 1
+            for img in predictions:  #should only be one image
+                coco_eval.all_cocoDts[img] = coco_dt
           #
             coco_eval.params.imgIds = list(img_ids)
             img_ids, eval_imgs = evaluate(coco_eval)

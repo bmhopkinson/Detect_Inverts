@@ -12,10 +12,10 @@ from PIL import Image, ImageDraw, ImageFont
 
 num_classes = 2
 score_threshold = 0.70
-min_area = 1000 #minimum object size in pixels^2
+min_area = 1 #minimum object size in pixels^2
 logfile_name = "logfile_test.txt"
-model_state_file = './model_archive/faster_rcnn_snails_2014_2015.pt'
-#model_state_file = './model_archive/faster_rcnn_snails_202106.pt'
+#model_state_file = './model_archive/faster_rcnn_snails_2014_2015.pt'
+model_state_file = './model_archive/faster_rcnn_snails_202106_2.pt'
 OUTPUT_IMAGES = True
 
 def get_transform(train):

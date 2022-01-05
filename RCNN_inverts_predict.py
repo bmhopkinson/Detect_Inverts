@@ -17,9 +17,9 @@ import helpers
 re_fbase = re.compile('^(.*)\.[jJ][pP][eE]?[gG]')
 
 num_classes = 2
-score_threshold = 0.80
+score_threshold = 0.30
 OUTPUT_TMP_IMAGES = False
-model_state_file = './model_archive/faster_rcnn_snails_2014_2015.pt'
+model_state_file = './model_archive/faster_rcnn_snails_202106_2.pt'
 #img_input_folder = './Data/2015'  #each directory (and its subdirectories) within this folder is processed as a unit
 #img_input_folder = './Data/Snails_pred_wholetest'
 img_input_folder = './Data/Sapelo_202106'
